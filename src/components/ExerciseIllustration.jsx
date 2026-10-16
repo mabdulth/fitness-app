@@ -2,13 +2,18 @@ import { useState } from 'react'
 
 // Pure Function สร้างลิงก์ค้นหาวิดีโอสอนท่าออกกำลังกายบน YouTube
 export function getExerciseYouTubeUrl(exerciseName = '') {
-  const cleanEnglishName = exerciseName.split('(')[0].trim() || exerciseName
-  const query = encodeURIComponent(`${cleanEnglishName} exercise form tutorial`)
+  const cleaned = String(exerciseName || '')
+    .replace(/🔥\s*\[[^\]]+\]\s*/g, '')
+    .split('(')[0]
+    .trim()
+  const query = encodeURIComponent(`${cleaned || exerciseName} exercise form tutorial`)
   return `https://www.youtube.com/results?search_query=${query}`
 }
 
-// คลังภาพถ่ายจริงอ้างอิงตามรูปแบบชีวกลศาสตร์ของท่าฝึก (High-Availability Fitness Photography)
+// คลังภาพถ่ายจริงอ้างอิงตามรูปแบบชีวกลศาสตร์ของท่าฝึก
 const BIOMECHANICAL_REAL_PHOTOS = {
+  WARMUP_UPPER: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=900&q=80',
+  WARMUP_LOWER: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=900&q=80',
   VERTICAL_PULL_WIDE: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=900&q=80',
   VERTICAL_PULL_CLOSE: 'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?auto=format&fit=crop&w=900&q=80',
   HORIZONTAL_ROW: 'https://images.unsplash.com/photo-1605296867304-46d5465a13f1?auto=format&fit=crop&w=900&q=80',
@@ -26,6 +31,7 @@ const BIOMECHANICAL_REAL_PHOTOS = {
   TRICEPS_KICKBACK: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=900&q=80',
   TRICEPS_SKULLCRUSHER: 'https://images.unsplash.com/photo-1534368420009-621bfab424a8?auto=format&fit=crop&w=900&q=80',
   SQUAT_BILATERAL: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?auto=format&fit=crop&w=900&q=80',
+  BULGARIAN_SPLIT_SQUAT: 'https://images.unsplash.com/photo-1434682881908-b43d0467b798?auto=format&fit=crop&w=900&q=80',
   LUNGE_UNILATERAL: 'https://images.unsplash.com/photo-1434682881908-b43d0467b798?auto=format&fit=crop&w=900&q=80',
   HIP_THRUST_GLUTE: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=900&q=80',
   DEADLIFT_HINGE: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=900&q=80',
@@ -35,7 +41,7 @@ const BIOMECHANICAL_REAL_PHOTOS = {
 }
 
 // ============================================================================
-// PURE BIOMECHANICAL CLASSIFIER: จำแนกครบ 23 รูปแบบการเคลื่อนไหวและระยะห่างมือจับ
+// PURE BIOMECHANICAL CLASSIFIER: แยกแต่ละท่าอย่างละเอียด ไม่ปนกัน
 // ============================================================================
 export function classifyExerciseBiomechanics(name = '', muscle = 'Chest') {
   const n = (name || '').toLowerCase()
@@ -50,14 +56,66 @@ export function classifyExerciseBiomechanics(name = '', muscle = 'Chest') {
     n.includes('หงายมือ') ||
     n.includes('ชิด')
 
-  // 1. ตรวจสอบท่าเฉพาะของแขน (Arms: แยกหลังแขน 4 รูปแบบ ออกจากหน้าแขนอย่างเด็ดขาด)
+  // 0. ตรวจสอบท่าวอร์มร่างกายก่อนเป็นอันดับแรก (แยกท่าหมุนไหล่ vs วอร์มสะบักแพลงก์ vs ยืดสะโพก/ข้อเท้า)
+  if (
+    muscle === 'Warmup' ||
+    n.includes('วอร์ม') ||
+    n.includes('warm-up') ||
+    n.includes('warmup') ||
+    n.includes('arm circle') ||
+    n.includes('scapular push') ||
+    n.includes('greatest stretch') ||
+    n.includes('leg swing') ||
+    n.includes('dorsiflexion') ||
+    n.includes('cat-cow') ||
+    n.includes('jumping jack')
+  ) {
+    if (n.includes('scapular push') || n.includes('wrist') || n.includes('วอร์มสะบัก') || n.includes('cat-cow')) {
+      return {
+        pattern: 'WARMUP_SCAPULAR_PUSHUP',
+        gripMode: 'neutral',
+        postureTh: 'หมุนข้อมือ + ท่าแพลงก์แขนตึงดันสะบักขึ้น-ลง',
+        vectorLabel: 'วิธีทำ: แขนตึงตลอด บีบสะบักลงแล้วดันสะบักขึ้นสุดระยะ ↑↓ 12-15 ครั้ง',
+        photoUrl: BIOMECHANICAL_REAL_PHOTOS.WARMUP_UPPER
+      }
+    }
+    if (
+      n.includes('stretch') ||
+      n.includes('hip') ||
+      n.includes('leg swing') ||
+      n.includes('ankle') ||
+      n.includes('dorsiflexion') ||
+      n.includes('good morning') ||
+      n.includes('สะโพก') ||
+      n.includes('ข้อเท้า') ||
+      n.includes('แกว่งขา')
+    ) {
+      return {
+        pattern: 'WARMUP_HIP_STRETCH',
+        gripMode: 'neutral',
+        postureTh: 'ก้าวย่อเปิดสะโพก + โยกข้อเท้าและหมุนลำตัว',
+        vectorLabel: 'วิธีทำ: ก้าวขายาว ย่อสะโพกลง โยกเข่าเปิดข้อเท้าแล้วบิดตัวชูแขนขึ้น ↗',
+        photoUrl: BIOMECHANICAL_REAL_PHOTOS.WARMUP_LOWER
+      }
+    }
+    // ท่าหมุนไหล่ เหวี่ยงแขน บิดลำตัว กระโดดตบ (Arm Circles & Scapular Swings)
+    return {
+      pattern: 'WARMUP_ARM_CIRCLES',
+      gripMode: 'wide',
+      postureTh: 'ยืนตรง 2 ขา หมุนหัวไหล่เป็นวงกลม & เหวี่ยงแขนเปิดอก',
+      vectorLabel: 'วิธีทำ: ยืนตรงกางแขน หมุนไหล่เป็นวงกลม ↺ 15 รอบ + เหวี่ยงแขนสลับหน้าอก ↔',
+      photoUrl: BIOMECHANICAL_REAL_PHOTOS.WARMUP_UPPER
+    }
+  }
+
+  // 1. หมวดแขน (Arms: แยกหลังแขน 4 ท่า vs หน้าแขน)
   if (muscle === 'Arms' || n.includes('triceps') || n.includes('หลังแขน') || n.includes('skullcrusher') || n.includes('pushdown')) {
     if (n.includes('overhead') || n.includes('ข้ามศีรษะ') || n.includes('เหนือศีรษะ')) {
       return {
         pattern: 'TRICEPS_OVERHEAD',
         gripMode: 'close',
         postureTh: 'ชูต้นแขนข้างใบหู เหยียดดัมเบลขึ้นเหนือศีรษะ',
-        vectorLabel: 'ทิศทางออกแรง: ล็อกศอกชี้ขึ้นฟ้า ออกแรงหลังแขนดันดัมเบลขึ้นตรงๆ ↑ • ผ่อนลงหลังศีรษะ ↓',
+        vectorLabel: 'ล็อกศอกชี้ขึ้นฟ้า ออกแรงหลังแขนดันดัมเบลขึ้นตรงๆ ↑',
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.TRICEPS_OVERHEAD
       }
     }
@@ -66,7 +124,7 @@ export function classifyExerciseBiomechanics(name = '', muscle = 'Chest') {
         pattern: 'TRICEPS_KICKBACK',
         gripMode: 'neutral',
         postureTh: 'ก้มตัว 60° ล็อกต้นแขนขนานพื้น เตะปลายแขนไปด้านหลัง',
-        vectorLabel: 'ทิศทางออกแรง: ล็อกศอกข้างลำตัว เหยียดปลายแขนไปด้านหลังจนตึง ← • ผ่อนกลับ 90° →',
+        vectorLabel: 'ล็อกศอกข้างลำตัว เหยียดปลายแขนไปด้านหลังจนตึง ←',
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.TRICEPS_KICKBACK
       }
     }
@@ -75,7 +133,7 @@ export function classifyExerciseBiomechanics(name = '', muscle = 'Chest') {
         pattern: 'TRICEPS_SKULLCRUSHER',
         gripMode: 'close',
         postureTh: 'นอนหงายจับแคบ หุบศอก ดันเหยียดหลังแขน',
-        vectorLabel: 'ทิศทางออกแรง: จับบาร์แคบหุบศอก ดันเหยียดหลังแขนขึ้นแนวดิ่ง ↑ • ผ่อนลงช้าๆ ↓',
+        vectorLabel: 'จับบาร์แคบหุบศอก ดันเหยียดหลังแขนขึ้นแนวดิ่ง ↑',
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.TRICEPS_SKULLCRUSHER
       }
     }
@@ -83,8 +141,8 @@ export function classifyExerciseBiomechanics(name = '', muscle = 'Chest') {
       return {
         pattern: 'PUSHUP_DIP',
         gripMode: 'close',
-        postureTh: 'วางมือแคบชิดกัน หุบศอกเน้นหลังแขน',
-        vectorLabel: 'ทิศทางออกแรง: หุบศอกแนบลำตัว ออกแรงหลังแขนดันตัวขึ้นสุดระยะ ↑',
+        postureTh: 'วางมือแคบชิดกัน หุบศอกดันตัวเน้นหลังแขน',
+        vectorLabel: 'หุบศอกแนบลำตัว ออกแรงหลังแขนดันตัวขึ้นสุดระยะ ↑',
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.PUSHUP_DIP
       }
     }
@@ -93,28 +151,27 @@ export function classifyExerciseBiomechanics(name = '', muscle = 'Chest') {
         pattern: 'TRICEPS_PUSHDOWN',
         gripMode: 'close',
         postureTh: 'ยืนตรงล็อกศอกข้างเอว กดเคเบิลลงด้านล่าง',
-        vectorLabel: 'ทิศทางออกแรง: ล็อกต้นแขนแนบลำตัว กดเหยียดปลายแขนลงด้านล่างจนสุด ↓ • ต้านขึ้นช้าๆ ↑',
+        vectorLabel: 'ล็อกต้นแขนแนบลำตัว กดเหยียดปลายแขนลงด้านล่างจนสุด ↓',
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.TRICEPS_PUSHDOWN
       }
     }
-    // หน้าแขน (Biceps Curl / Hammer Curl)
     return {
       pattern: 'BICEP_CURL',
       gripMode: 'neutral',
-      postureTh: 'ล็อกข้อศอกข้างลำตัว พับหน้าแขนขึ้น (Elbow Flexion)',
-      vectorLabel: 'ทิศทางออกแรง: ล็อกศอกติดสีข้าง พับปลายแขนยกดัมเบล/บาร์ขึ้นหาไหล่ ↺ ↑ • ต้านลงช้าๆ ↓',
+      postureTh: 'ล็อกข้อศอกข้างลำตัว พับหน้าแขนขึ้น',
+      vectorLabel: 'ล็อกศอกติดสีข้าง พับปลายแขนยกดัมเบล/บาร์ขึ้นหาไหล่ ↺ ↑',
       photoUrl: BIOMECHANICAL_REAL_PHOTOS.BICEP_CURL
     }
   }
 
-  // 2. หมวดกล้ามเนื้อหลังและปีก (Back: แยกดึงจับกว้าง vs ดึงจับแคบ/หงายมือ vs ดึงแนวราบ)
+  // 2. หมวดหลังและปีก (Back)
   if (muscle === 'Back') {
     if (n.includes('deadlift') || n.includes('เดดลิฟต์') || n.includes('back extension') || n.includes('หลังล่าง')) {
       return {
         pattern: 'DEADLIFT_HINGE',
         gripMode: 'neutral',
         postureTh: 'พับสะโพกหลังตรง (Hip Hinge & Lower Back)',
-        vectorLabel: 'ทิศทางออกแรง: เกร็งแกนกลางหลังตรง ดันสะโพกยืดลำตัวขึ้น ↑ • พับสะโพกผ่อนลง ↓',
+        vectorLabel: 'เกร็งแกนกลางหลังตรง ดันสะโพกยืดลำตัวขึ้น ↑ • พับสะโพกลง ↓',
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.DEADLIFT_HINGE
       }
     }
@@ -130,36 +187,36 @@ export function classifyExerciseBiomechanics(name = '', muscle = 'Chest') {
         return {
           pattern: 'VERTICAL_PULL_CLOSE',
           gripMode: 'close',
-          postureTh: 'มือจับแคบชิดกัน (Close/V-Bar/Underhand) หุบศอกด้านหน้า',
-          vectorLabel: 'ทิศทางออกแรง: มือจับแคบตรงกลาง หุบศอกดึงลงมาหาอกล่างเพื่อเน้นปีกล่าง ↓ • ผ่อนขึ้นสุด ↑',
+          postureTh: 'มือจับแคบชิดกัน หุบศอกดึงลงหน้าอก',
+          vectorLabel: 'มือจับแคบตรงกลาง หุบศอกดึงลงมาหาอกล่างเน้นปีกล่าง ↓',
           photoUrl: BIOMECHANICAL_REAL_PHOTOS.VERTICAL_PULL_CLOSE
         }
       }
       return {
         pattern: 'VERTICAL_PULL_WIDE',
         gripMode: 'wide',
-        postureTh: 'มือจับกว้างกว่าไหล่ (Wide-Grip) กางศอกดึงลงหาอกบน',
-        vectorLabel: 'ทิศทางออกแรง: จับบาร์กว้าง แอ่นอกรับ กดศอกดึงลงมาที่อกบนเน้นปีกบนกว้าง ↓ • ผ่อนขึ้น ↑',
+        postureTh: 'มือจับกว้างกว่าไหล่ กางศอกดึงลงหาอกบน',
+        vectorLabel: 'จับบาร์กว้าง แอ่นอกรับ กดศอกดึงลงมาที่อกบนเน้นปีกบนกว้าง ↓',
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.VERTICAL_PULL_WIDE
       }
     }
     return {
       pattern: 'HORIZONTAL_ROW',
       gripMode: isCloseGrip ? 'close' : 'neutral',
-      postureTh: 'ดึงเข้าหาลำตัวแนวราบ บีบร่องสะบัก (Rowing)',
-      vectorLabel: 'ทิศทางออกแรง: ดึงศอกผ่านสีข้างไปด้านหลัง บีบสะบักเข้าหากัน ← • ผ่อนแขนยืดปีก →',
+      postureTh: 'ดึงเข้าหาลำตัวแนวราบ บีบร่องสะบัก',
+      vectorLabel: 'ดึงศอกผ่านสีข้างไปด้านหลัง บีบสะบักเข้าหากัน ←',
       photoUrl: BIOMECHANICAL_REAL_PHOTOS.HORIZONTAL_ROW
     }
   }
 
-  // 3. หมวดกล้ามเนื้ออก (Chest: แยกเตียงเอียง Incline, เตียงราบ Flat, จับแคบ, กางโอบ Fly, วิดพื้น)
+  // 3. หมวดอก (Chest)
   if (muscle === 'Chest') {
     if (n.includes('incline') || n.includes('อกบน') || n.includes('low-to-high') || n.includes('ช้อนเคเบิล')) {
       return {
         pattern: 'INCLINE_PRESS',
         gripMode: 'wide',
-        postureTh: 'นั่งพิงเบาะเอียง 35-45° (Incline Bench)',
-        vectorLabel: 'ทิศทางออกแรง: เอนหลังพิงเบาะเอียง ดันดัมเบล/บาร์ขึ้นแนวดิ่งเหนืออกบน ↑ • ผ่อนลงคุมศอก ↓',
+        postureTh: 'นั่งพิงเบาะเอียง 35-45° ดันเน้นอกบน',
+        vectorLabel: 'เอนหลังพิงเบาะเอียง ดันดัมเบล/บาร์ขึ้นแนวดิ่งเหนืออกบน ↑',
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.INCLINE_PRESS
       }
     }
@@ -167,8 +224,8 @@ export function classifyExerciseBiomechanics(name = '', muscle = 'Chest') {
       return {
         pattern: 'PUSHUP_DIP',
         gripMode: isCloseGrip ? 'close' : 'wide',
-        postureTh: 'คว่ำหน้าเกร็งลำตัวตรง / ค้ำบาร์คู่โน้มตัวหน้า',
-        vectorLabel: 'ทิศทางออกแรง: ย่ออกลงช้าๆ ↓ • ออกแรงอกและแขนดันตัวขึ้นสุดระยะ ↑',
+        postureTh: 'คว่ำหน้าเกร็งลำตัวตรง ดันตัวขึ้นจากพื้น',
+        vectorLabel: 'ย่ออกลงใกล้พื้น ↓ • ออกแรงอกและแขนดันลำตัวขึ้นสุด ↑',
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.PUSHUP_DIP
       }
     }
@@ -176,8 +233,8 @@ export function classifyExerciseBiomechanics(name = '', muscle = 'Chest') {
       return {
         pattern: 'CHEST_FLY',
         gripMode: 'wide',
-        postureTh: 'วาดแขนโอบเข้าหากลางร่องอก (Arc Hug)',
-        vectorLabel: 'ทิศทางออกแรง: กางแขนยืดอกออก ← → • โอบแขนเข้าบีบร่องอกด้านใน → ←',
+        postureTh: 'วาดแขนโอบเข้าหากลางร่องอก',
+        vectorLabel: 'กางแขนยืดอกออก ← → • โอบแขนเข้าบีบร่องอกด้านใน → ←',
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.CHEST_FLY
       }
     }
@@ -186,27 +243,27 @@ export function classifyExerciseBiomechanics(name = '', muscle = 'Chest') {
         pattern: 'CLOSE_GRIP_PRESS',
         gripMode: 'close',
         postureTh: 'นอนดันจับแคบ ศอกชิดลำตัว',
-        vectorLabel: 'ทิศทางออกแรง: จับบาร์แคบช่วงไหล่ ดันขึ้นตรงๆ เน้นอกในและหลังแขน ↑',
+        vectorLabel: 'จับบาร์แคบช่วงไหล่ ดันขึ้นตรงๆ เน้นอกในและหลังแขน ↑',
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.CLOSE_GRIP_PRESS
       }
     }
     return {
       pattern: 'FLAT_PRESS_WIDE',
       gripMode: 'wide',
-      postureTh: 'นอนราบขนานพื้น 0° (Flat Bench)',
-      vectorLabel: 'ทิศทางออกแรง: นอนเตียงราบ ดันขึ้นตั้งฉากจากอกกลาง ↑ • ต้านน้ำหนักลงช้าๆ ↓',
+      postureTh: 'นอนเตียงราบ ดันขึ้นตั้งฉากจากอกกลาง',
+      vectorLabel: 'นอนเตียงราบ ดันขึ้นตั้งฉากจากอกกลาง ↑ • ต้านลงช้าๆ ↓',
       photoUrl: BIOMECHANICAL_REAL_PHOTOS.FLAT_PRESS_WIDE
     }
   }
 
-  // 4. หมวดกล้ามเนื้อหัวไหล่และบ่า (Shoulders)
+  // 4. หมวดหัวไหล่และบ่า (Shoulders)
   if (muscle === 'Shoulders') {
     if (n.includes('lateral raise') || n.includes('กางดัมเบล') || n.includes('กางไหล่')) {
       return {
         pattern: 'LATERAL_RAISE',
         gripMode: 'wide',
-        postureTh: 'ยืน/นั่ง กางแขนออกด้านข้างลำตัวระดับไหล่',
-        vectorLabel: 'ทิศทางออกแรง: ยกกางข้อศอกออกด้านข้างขึ้นมาที่ระดับหัวไหล่ ↖ ↗ • ต้านลงช้าๆ',
+        postureTh: 'ยืนตรง 2 ขา กางแขนยกดัมเบลออกด้านข้างระดับไหล่',
+        vectorLabel: 'ยืนตรงนิ่งๆ ยกกางข้อศอกออกด้านข้างขึ้นมาที่ระดับหัวไหล่ ↖ ↗',
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.LATERAL_RAISE
       }
     }
@@ -214,8 +271,8 @@ export function classifyExerciseBiomechanics(name = '', muscle = 'Chest') {
       return {
         pattern: 'HORIZONTAL_ROW',
         gripMode: 'wide',
-        postureTh: 'กางศอกดึงไปด้านหลัง (Rear Delt Pull)',
-        vectorLabel: 'ทิศทางออกแรง: ดึงแยกเชือกเคเบิล/กางดัมเบลไปด้านหลังเพื่อบีบไหล่หลัง ←',
+        postureTh: 'กางศอกดึงไปด้านหลัง เน้นไหล่หลังและสะบัก',
+        vectorLabel: 'ดึงแยกเชือกเคเบิล/กางดัมเบลไปด้านหลังเพื่อบีบไหล่หลัง ←',
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.HORIZONTAL_ROW
       }
     }
@@ -224,27 +281,27 @@ export function classifyExerciseBiomechanics(name = '', muscle = 'Chest') {
         pattern: 'SHRUG_FARMER',
         gripMode: 'neutral',
         postureTh: 'ยืนตรงถือดัมเบลข้างลำตัว ยักไหล่สร้างบ่ารับเป้',
-        vectorLabel: 'ทิศทางออกแรง: ออกแรงกล้ามเนื้อบ่าดึงหัวไหล่ขึ้นตรงๆ หาใบหู ↑ ค้าง 1 วินาที • ผ่อนลง ↓',
+        vectorLabel: 'ออกแรงกล้ามเนื้อบ่าดึงหัวไหล่ขึ้นตรงๆ หาใบหู ↑ ค้าง 1 วินาที',
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.SHRUG_FARMER
       }
     }
     return {
       pattern: 'SHOULDER_PRESS',
       gripMode: 'wide',
-      postureTh: 'นั่งพิงเบาะตั้งฉาก ดันขึ้นเหนือศีรษะ (Overhead Press)',
-      vectorLabel: 'ทิศทางออกแรง: ดันน้ำหนักจากระดับไหล่ขึ้นตรงๆ เหนือศีรษะ ↑ • ผ่อนลงระดับคาง ↓',
+      postureTh: 'ยืน/นั่งหลังตรง ดันดัมเบลหรือบาร์เบลขึ้นเหนือศีรษะ',
+      vectorLabel: 'ดันน้ำหนักจากระดับไหล่ชูขึ้นตรงๆ เหนือศีรษะ ↑ • ผ่อนลงระดับคาง ↓',
       photoUrl: BIOMECHANICAL_REAL_PHOTOS.SHOULDER_PRESS
     }
   }
 
-  // 5. หมวดกล้ามเนื้อขา ก้น สะโพก และน่อง (Legs)
+  // 5. หมวดขา ก้น สะโพก และน่อง (Legs: แยก Bulgarian Split Squat, Lunges, Squat, RDL, Hip Thrust)
   if (muscle === 'Legs') {
     if (n.includes('hip thrust') || n.includes('glute bridge') || n.includes('kickback') || n.includes('ดันสะโพก') || n.includes('ปั้นก้น')) {
       return {
         pattern: 'HIP_THRUST_GLUTE',
         gripMode: 'neutral',
-        postureTh: 'พาดสะบักกับม้านั่ง ดันสะโพกขึ้นบีบก้น (Hip Extension)',
-        vectorLabel: 'ทิศทางออกแรง: ใช้ส้นเท้ากดพื้น ดันสะโพกขึ้นจนลำตัวขนานพื้นและบีบก้นค้าง ↑ • ลดสะโพกลง ↓',
+        postureTh: 'พาดสะบักกับม้านั่ง ดันสะโพกขึ้นบีบก้น',
+        vectorLabel: 'ใช้ส้นเท้ากดพื้น ดันสะโพกขึ้นจนลำตัวขนานพื้นและบีบก้นค้าง ↑',
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.HIP_THRUST_GLUTE
       }
     }
@@ -252,23 +309,26 @@ export function classifyExerciseBiomechanics(name = '', muscle = 'Chest') {
       return {
         pattern: 'DEADLIFT_HINGE',
         gripMode: 'neutral',
-        postureTh: 'ดันสะโพกไปด้านหลัง ยืดแฮมสตริงและก้น (RDL Hinge)',
-        vectorLabel: 'ทิศทางออกแรง: ดันก้นไปด้านหลังจนตึงขาหลัง ← ↓ • บีบก้นดันสะโพกกลับขึ้นมา → ↑',
+        postureTh: 'ดันสะโพกไปด้านหลัง ยืดแฮมสตริงและก้น (RDL)',
+        vectorLabel: 'ดันก้นไปด้านหลังจนตึงขาหลัง ← ↓ • บีบก้นดันสะโพกกลับขึ้นมา → ↑',
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.DEADLIFT_HINGE
       }
     }
-    if (
-      n.includes('lunge') ||
-      n.includes('split squat') ||
-      n.includes('step-up') ||
-      n.includes('ขาเดียว') ||
-      n.includes('ก้าว')
-    ) {
+    if (n.includes('bulgarian') || n.includes('split squat') || n.includes('พาดม้านั่ง') || n.includes('ขาเดียว')) {
+      return {
+        pattern: 'BULGARIAN_SPLIT_SQUAT',
+        gripMode: 'neutral',
+        postureTh: 'วางหลังเท้าข้างหนึ่งพาดม้านั่งด้านหลัง ย่อเข่าขาหน้า 90°',
+        vectorLabel: 'วางเท้าหลังบนม้านั่ง ย่อเข่าหน้าลงแนวดิ่ง ↓ • ถีบส้นเท้าหน้าดันตัวขึ้น ↑',
+        photoUrl: BIOMECHANICAL_REAL_PHOTOS.BULGARIAN_SPLIT_SQUAT
+      }
+    }
+    if (n.includes('lunge') || n.includes('step-up') || n.includes('ก้าวย่อ') || n.includes('ก้าวขึ้น')) {
       return {
         pattern: 'LUNGE_UNILATERAL',
         gripMode: 'neutral',
-        postureTh: 'ก้าวขาหน้า-หลัง ย่อเข่า 90° (Unilateral Split)',
-        vectorLabel: 'ทิศทางออกแรง: ย่อเข่าลงแนวดิ่ง ↓ • ใช้ส้นเท้าและต้นขาหน้าถีบตัวขึ้นตรงๆ ↑',
+        postureTh: 'ก้าวขาหน้า-ขาหลังแยกกัน ย่อเข่าทั้ง 2 ข้างลง 90°',
+        vectorLabel: 'ก้าวขาหน้าออกไป ย่อเข่าลงแนวดิ่ง ↓ • ใช้ขาหน้าถีบตัวขึ้น ↑',
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.LUNGE_UNILATERAL
       }
     }
@@ -276,65 +336,66 @@ export function classifyExerciseBiomechanics(name = '', muscle = 'Chest') {
       return {
         pattern: 'LEG_ISOLATION',
         gripMode: 'neutral',
-        postureTh: 'บริหารเฉพาะส่วนข้อเข่า / เขย่งข้อเท้า',
-        vectorLabel: 'ทิศทางออกแรง: เตะเหยียด/พับขา หรือเขย่งปลายเท้าขึ้นสุดระยะ ↑ แล้วเกร็งค้าง 1 วินาที',
+        postureTh: 'บริหารเฉพาะส่วนข้อเข่า / ยืนเขย่งน่อง 2 ขา',
+        vectorLabel: 'เตะเหยียดขา หรือเขย่งปลายเท้าขึ้นสุดระยะ ↑ แล้วเกร็งค้าง 1 วินาที',
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.LEG_ISOLATION
       }
     }
     return {
       pattern: 'SQUAT_BILATERAL',
       gripMode: 'neutral',
-      postureTh: 'ยืนสองขา พับสะโพกย่อเข่า (Squat Pattern)',
-      vectorLabel: 'ทิศทางออกแรง: 1.พับสะโพกย่อเข่าลง ↓ • 2.ถีบพื้นเต็มเท้าดันตัวขึ้นตรงๆ ↑',
+      postureTh: 'ยืนสองขากว้างเท่าไหล่ พับสะโพกย่อเข่าลง',
+      vectorLabel: 'พับสะโพกย่อเข่าลง ↓ • ถีบพื้นเต็มเท้าดันตัวขึ้นตรงๆ ↑',
       photoUrl: BIOMECHANICAL_REAL_PHOTOS.SQUAT_BILATERAL
     }
   }
 
-  // 6. หมวดหน้าท้องและแกนกลางลำตัว (Core)
+  // 6. หมวดหน้าท้อง (Core)
   if (muscle === 'Core') {
     return {
       pattern: 'CORE_CRUNCH',
       gripMode: 'neutral',
-      postureTh: 'เกร็งพับหน้าท้อง / บิดเอวคอด / แพลงก์',
-      vectorLabel: 'ทิศทางออกแรง: ใช้กล้ามเนื้อหน้าท้องดึงยกขา/บิดลำตัว ↑ • ผ่อนลงช้าๆ ห้ามเหวี่ยงหลัง ↓',
+      postureTh: 'เกร็งพับหน้าท้อง / บิดเอว / แพลงก์',
+      vectorLabel: 'ใช้กล้ามเนื้อหน้าท้องดึงยกขาหรือเกร็งลำตัวขนานพื้น ↑',
       photoUrl: BIOMECHANICAL_REAL_PHOTOS.CORE_CRUNCH
     }
   }
 
-  // 7. หมวดคาร์ดิโอและเดินชันลู่วิ่ง (Cardio)
+  // 7. หมวดคาร์ดิโอและเดินชันลู่วิ่ง (Cardio: มี 2 ขาก้าวเดินสลับกัน)
   return {
     pattern: 'CARDIO_INCLINE',
     gripMode: 'neutral',
-    postureTh: 'ก้าวเดินไต่ความชัน โน้มตัวหน้าเล็กน้อย',
-    vectorLabel: 'ทิศทางออกแรง: ก้าวเดินขึ้นทางชันสม่ำเสมอ ↗ (ห้ามเกาะราวลู่วิ่งเอนตัวไปข้างหลัง)',
+    postureTh: 'ก้าวเดินไต่ความชันสลับซ้าย-ขวา โน้มตัวหน้าเล็กน้อย',
+    vectorLabel: 'ก้าวเดิน 2 ขาสลับกันขึ้นทางชันสม่ำเสมอ ↗ (ห้ามเกาะราวลู่วิ่งเอนหลัง)',
     photoUrl: BIOMECHANICAL_REAL_PHOTOS.CARDIO_INCLINE
   }
 }
 
 export default function ExerciseIllustration({ name = '', muscle, type, size = 'md' }) {
   const [isAnimating, setIsAnimating] = useState(true)
-  // สลับดูระหว่าง 'vector' (แผนภาพชีวกลศาสตร์ 2 มุม + ลูกศร) และ 'photo' (ภาพถ่ายจริง)
   const [displayMode, setDisplayMode] = useState('vector')
 
   const sizeClasses =
     size === 'xl'
-      ? 'w-full h-60 rounded-2xl'
+      ? 'w-full h-64 sm:h-72 rounded-2xl'
       : size === 'lg'
         ? 'w-20 h-20 rounded-xl'
         : 'w-14 h-14 rounded-xl'
 
   const colorMap = {
+    Warmup: { bg: 'from-amber-950 via-slate-900 to-slate-950', lightBg: 'bg-amber-50 border-amber-300', primary: '#f59e0b', glow: '#fde68a', labelTh: 'WARM-UP • วอร์มร่างกาย' },
     Chest: { bg: 'from-rose-950 via-slate-900 to-slate-950', lightBg: 'bg-rose-50 border-rose-200', primary: '#f43f5e', glow: '#fda4af', labelTh: 'CHEST • กล้ามเนื้ออก' },
     Back: { bg: 'from-indigo-950 via-slate-900 to-slate-950', lightBg: 'bg-indigo-50 border-indigo-200', primary: '#6366f1', glow: '#a5b4fc', labelTh: 'BACK • แผ่นหลังและปีก' },
     Legs: { bg: 'from-emerald-950 via-slate-900 to-slate-950', lightBg: 'bg-emerald-50 border-emerald-200', primary: '#10b981', glow: '#6ee7b7', labelTh: 'LEGS • ขา ก้น สะโพก น่อง' },
     Shoulders: { bg: 'from-amber-950 via-slate-900 to-slate-950', lightBg: 'bg-amber-50 border-amber-200', primary: '#f59e0b', glow: '#fcd34d', labelTh: 'SHOULDERS • หัวไหล่และบ่า' },
     Arms: { bg: 'from-purple-950 via-slate-900 to-slate-950', lightBg: 'bg-purple-50 border-purple-200', primary: '#a855f7', glow: '#d8b4fe', labelTh: 'ARMS • หน้าแขนและหลังแขน' },
-    Core: { bg: 'from-teal-950 via-slate-900 to-slate-950', lightBg: 'bg-teal-50 border-teal-200', primary: '#14b8a6', glow: '#5eead4', labelTh: 'CORE • หน้าท้องและเอวคอด' },
-    Cardio: { bg: 'from-sky-950 via-slate-900 to-slate-950', lightBg: 'bg-sky-50 border-sky-200', primary: '#0ea5e9', glow: '#7dd3fc', labelTh: 'CARDIO • ลู่วิ่งและเดินชัน' }
+    Core: { bg: 'from-teal-950 via-slate-900 to-slate-950', lightBg: 'bg-teal-50 border-teal-200', primary: '#14b8a6', glow: '#5eead4', labelTh: 'CORE • หน้าท้องและเอว' },
+    Cardio: { bg: 'from-sky-950 via-slate-900 to-slate-950', lightBg: 'bg-sky-50 border-sky-200', primary: '#0ea5e9', glow: '#7dd3fc', labelTh: 'CARDIO • ลู่วิ่งเดินชัน' }
   }
 
-  const theme = colorMap[muscle] || colorMap.Chest
   const bio = classifyExerciseBiomechanics(name, muscle, type)
+  const isWarmupPattern = bio.pattern.startsWith('WARMUP_')
+  const theme = isWarmupPattern ? colorMap.Warmup : colorMap[muscle] || colorMap.Chest
   const isHeroBanner = size === 'xl'
 
   return (
@@ -343,23 +404,23 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
         isHeroBanner
           ? `bg-gradient-to-br ${theme.bg} text-white border border-slate-800 shadow-inner`
           : `${theme.lightBg} border`
-      } flex flex-col items-center justify-center p-2 shrink-0 relative overflow-hidden select-none`}
+      } flex flex-col items-center justify-center p-2.5 shrink-0 relative overflow-hidden select-none`}
     >
-      {/* แถบหัวการ์ดสำหรับโหมด Hero Card */}
+      {/* แถบหัวการ์ดสำหรับโหมด Hero Card (ตัวหนังสือใหญ่ขึ้น ไม่เบียดกัน) */}
       {isHeroBanner ? (
-        <div className="absolute top-2.5 left-3 right-3 flex flex-wrap items-center justify-between gap-1 z-20">
+        <div className="absolute top-2.5 left-3 right-3 flex flex-wrap items-center justify-between gap-1.5 z-20">
           <div className="flex flex-wrap items-center gap-1.5">
             <span
-              className="px-2 py-0.5 text-[10px] font-black tracking-wider uppercase rounded-md border"
+              className="px-2.5 py-1 text-xs font-black tracking-wide uppercase rounded-lg border"
               style={{
-                backgroundColor: `${theme.primary}25`,
-                borderColor: `${theme.primary}60`,
+                backgroundColor: `${theme.primary}30`,
+                borderColor: `${theme.primary}70`,
                 color: theme.glow
               }}
             >
               {theme.labelTh}
             </span>
-            <span className="px-2 py-0.5 text-[10px] font-bold bg-slate-950/80 text-slate-200 rounded-md border border-white/15">
+            <span className="hidden sm:inline-block px-2.5 py-1 text-xs font-bold bg-slate-950/85 text-slate-100 rounded-lg border border-white/15">
               {bio.postureTh}
             </span>
           </div>
@@ -371,9 +432,9 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                 e.stopPropagation()
                 setDisplayMode(prev => (prev === 'vector' ? 'photo' : 'vector'))
               }}
-              className="px-2.5 py-0.5 text-[10px] font-extrabold text-amber-300 bg-slate-950/90 border border-amber-500/50 rounded-md hover:bg-slate-800 transition"
+              className="px-3 py-1 text-xs font-extrabold text-amber-300 bg-slate-950/90 border border-amber-500/50 rounded-lg hover:bg-slate-800 transition"
             >
-              {displayMode === 'vector' ? '📸 ดูภาพจริง' : '📐 ดูเวกเตอร์ 2 มุม'}
+              {displayMode === 'vector' ? '📸 ภาพจริง' : '📐 ท่าจำลอง'}
             </button>
 
             {displayMode === 'vector' && (
@@ -383,35 +444,35 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                   e.stopPropagation()
                   setIsAnimating(prev => !prev)
                 }}
-                className={`px-2 py-0.5 text-[10px] font-extrabold rounded-md border transition ${
+                className={`px-2.5 py-1 text-xs font-extrabold rounded-lg border transition ${
                   isAnimating
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 hover:bg-emerald-500/30'
-                    : 'bg-slate-800 text-slate-300 border-slate-600 hover:bg-slate-700'
+                    ? 'bg-emerald-500/25 text-emerald-300 border-emerald-500/50'
+                    : 'bg-slate-800 text-slate-300 border-slate-600'
                 }`}
               >
-                {isAnimating ? '⏸ หยุด' : '▶ เล่น'}
+                {isAnimating ? '⏸' : '▶'}
               </button>
             )}
           </div>
         </div>
       ) : (
-        <div className="absolute top-1 left-1 opacity-80">
-          <span className="text-[8px] font-black px-1 bg-white/80 text-slate-700 rounded">
+        <div className="absolute top-1 left-1 opacity-85">
+          <span className="text-[9px] font-black px-1 bg-white/90 text-slate-800 rounded">
             {(type || 'GYM').slice(0, 4).toUpperCase()}
           </span>
         </div>
       )}
 
-      {/* ป้ายบอกทิศทางการออกแรงด้านล่างสุดของการ์ด */}
+      {/* ป้ายบอกทิศทางการออกแรงด้านล่างสุดของการ์ด (ตัวหนังสืออ่านง่าย) */}
       {isHeroBanner && (
         <div className="absolute bottom-2 left-3 right-3 flex items-center justify-center z-20 pointer-events-none">
-          <span className="px-2.5 py-0.5 text-[10px] font-bold text-emerald-300 bg-slate-950/90 border border-emerald-500/40 rounded-md truncate">
+          <span className="px-3 py-1 text-xs font-extrabold text-emerald-300 bg-slate-950/95 border border-emerald-500/40 rounded-lg truncate max-w-full">
             🎯 {bio.vectorLabel}
           </span>
         </div>
       )}
 
-      {/* โหมดแสดงภาพถ่ายจริง (Real Photo Reference Mode) */}
+      {/* โหมดแสดงภาพถ่ายจริง */}
       {isHeroBanner && displayMode === 'photo' ? (
         <div className="relative w-full h-full rounded-xl overflow-hidden">
           <img
@@ -420,46 +481,220 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
             className="w-full h-full object-cover object-center opacity-85"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
-          <div className="absolute bottom-9 left-4 right-4 flex items-center justify-between">
-            <span className="px-3 py-1 text-xs font-black text-white bg-slate-950/85 border border-white/20 rounded-xl">
+          <div className="absolute bottom-10 left-4 right-4 flex items-center justify-between gap-2">
+            <span className="px-3 py-1.5 text-xs font-black text-white bg-slate-950/90 border border-white/20 rounded-xl truncate">
               {name.split('(')[0]}
             </span>
             <a
               href={getExerciseYouTubeUrl(name)}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-3 py-1 text-xs font-extrabold text-white bg-rose-600 rounded-xl shadow-md hover:bg-rose-500"
+              className="px-3.5 py-1.5 text-xs font-extrabold text-white bg-rose-600 rounded-xl shadow-md hover:bg-rose-500 shrink-0"
             >
-              ▶ ดูวิดีโอท่านี้บน YouTube
+              ▶ ดูคลิปสอนบน YouTube
             </a>
           </div>
         </div>
       ) : (
         /* โหมดแผนภาพชีวกลศาสตร์ 2 มุมมอง (Front View & Side View) */
         <svg
-          viewBox={isHeroBanner ? '0 0 320 160' : '0 0 100 100'}
-          className={isHeroBanner ? 'w-full h-full mt-3 mb-2' : 'w-full h-full'}
+          viewBox={isHeroBanner ? '0 0 320 165' : '0 0 100 100'}
+          className={isHeroBanner ? 'w-full h-full mt-4 mb-3' : 'w-full h-full'}
         >
           <defs>
             <marker id="arrowConcentric" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
               <path d="M0,0 L6,3 L0,6 Z" fill="#34d399" />
             </marker>
-            <marker id="arrowEccentric" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
-              <path d="M0,0 L6,3 L0,6 Z" fill="#fbbf24" />
-            </marker>
           </defs>
 
           {isHeroBanner ? (
             <>
-              <line x1="160" y1="24" x2="160" y2="134" stroke="#334155" strokeWidth="1" strokeDasharray="3 3" />
-              <line x1="14" y1="132" x2="306" y2="132" stroke="#475569" strokeWidth="1.5" />
+              <line x1="160" y1="26" x2="160" y2="136" stroke="#334155" strokeWidth="1" strokeDasharray="3 3" />
+              <line x1="14" y1="134" x2="306" y2="134" stroke="#475569" strokeWidth="1.5" />
 
-              <text x="80" y="33" textAnchor="middle" className="text-[8px] font-extrabold fill-slate-400 uppercase">
-                1. FRONT VIEW (มุมด้านหน้า)
+              <text x="80" y="34" textAnchor="middle" className="text-[9px] font-extrabold fill-slate-300 uppercase">
+                1. มุมด้านหน้า (FRONT)
               </text>
-              <text x="240" y="33" textAnchor="middle" className="text-[8px] font-extrabold fill-sky-300 uppercase">
-                2. SIDE VIEW (มุมด้านข้าง + ทิศทางแรง)
+              <text x="240" y="34" textAnchor="middle" className="text-[9px] font-extrabold fill-sky-300 uppercase">
+                2. มุมด้านข้าง (SIDE)
               </text>
+
+              {/* ===============================================================
+                  0A. WARMUP_ARM_CIRCLES (ยืนตรงหมุนไหล่เป็นวงกลม & เหวี่ยงแขนสลับหน้าอก)
+                 =============================================================== */}
+              {bio.pattern === 'WARMUP_ARM_CIRCLES' && (
+                <>
+                  {/* มุมด้านหน้า: ยืนตรง 2 ขา กางแขนหมุนหัวไหล่ */}
+                  <g transform="translate(80, 44)">
+                    <circle cx="0" cy="12" r="7" fill="#cbd5e1" />
+                    <rect x="-12" y="21" width="24" height="32" rx="5" fill="#475569" />
+                    {/* หัวไหล่ทั้ง 2 ข้างไฮไลท์สีส้มทอง */}
+                    <circle cx="-14" cy="25" r="5" fill={theme.primary} />
+                    <circle cx="14" cy="25" r="5" fill={theme.primary} />
+                    {/* ขา 2 ข้างยืนตรงมั่นคง ไม่ย่อเข่า */}
+                    <line x1="-8" y1="53" x2="-10" y2="88" stroke="#94a3b8" strokeWidth="5.5" strokeLinecap="round" />
+                    <line x1="8" y1="53" x2="10" y2="88" stroke="#94a3b8" strokeWidth="5.5" strokeLinecap="round" />
+                    {/* แขนซ้าย-ขวาหมุนขึ้นลงเปิดสะบัก */}
+                    <g>
+                      {isAnimating && (
+                        <animateTransform
+                          attributeName="transform"
+                          type="rotate"
+                          values="-28 -14 25; 28 -14 25; -28 -14 25"
+                          dur="1.6s"
+                          repeatCount="indefinite"
+                        />
+                      )}
+                      <line x1="-14" y1="25" x2="-40" y2="25" stroke="#e2e8f0" strokeWidth="4.5" strokeLinecap="round" />
+                      <circle cx="-40" cy="25" r="3.5" fill={theme.glow} />
+                    </g>
+                    <g>
+                      {isAnimating && (
+                        <animateTransform
+                          attributeName="transform"
+                          type="rotate"
+                          values="28 14 25; -28 14 25; 28 14 25"
+                          dur="1.6s"
+                          repeatCount="indefinite"
+                        />
+                      )}
+                      <line x1="14" y1="25" x2="40" y2="25" stroke="#e2e8f0" strokeWidth="4.5" strokeLinecap="round" />
+                      <circle cx="40" cy="25" r="3.5" fill={theme.glow} />
+                    </g>
+                  </g>
+
+                  {/* มุมด้านข้าง: เห็นแขนหมุนเป็นวงกลม 360 องศาชัดเจน */}
+                  <g transform="translate(235, 44)">
+                    <circle cx="0" cy="12" r="7" fill="#cbd5e1" />
+                    <rect x="-7" y="21" width="14" height="32" rx="4" fill="#475569" />
+                    <line x1="-3" y1="53" x2="-5" y2="88" stroke="#94a3b8" strokeWidth="5.5" strokeLinecap="round" />
+                    <line x1="4" y1="53" x2="6" y2="88" stroke="#64748b" strokeWidth="5.5" strokeLinecap="round" />
+                    {/* วงกลมเส้นประแสดงวิถีหมุนหัวไหล่ */}
+                    <circle cx="0" cy="26" r="24" fill="none" stroke="#34d399" strokeWidth="1.8" strokeDasharray="4 3" />
+                    <circle cx="0" cy="26" r="5" fill={theme.primary} />
+                    <g>
+                      {isAnimating && (
+                        <animateTransform
+                          attributeName="transform"
+                          type="rotate"
+                          from="0 0 26"
+                          to="360 0 26"
+                          dur="2.0s"
+                          repeatCount="indefinite"
+                        />
+                      )}
+                      <line x1="0" y1="26" x2="0" y2="2" stroke="#e2e8f0" strokeWidth="4.5" strokeLinecap="round" />
+                      <circle cx="0" cy="2" r="4" fill={theme.glow} />
+                    </g>
+                    <text x="30" y="28" className="text-[8.5px] font-bold fill-emerald-300">หมุนไหล่ ↺</text>
+                  </g>
+                </>
+              )}
+
+              {/* ===============================================================
+                  0B. WARMUP_SCAPULAR_PUSHUP (หมุนข้อมือ + ท่าแพลงก์แขนตึงดันสะบักขึ้น-ลง)
+                 =============================================================== */}
+              {bio.pattern === 'WARMUP_SCAPULAR_PUSHUP' && (
+                <>
+                  {/* มุมด้านหน้า: ประสานมือหมุนข้อมือและบีบ-กางสะบัก */}
+                  <g transform="translate(80, 44)">
+                    <circle cx="0" cy="14" r="7" fill="#cbd5e1" />
+                    <rect x="-13" y="23" width="26" height="32" rx="5" fill="#475569" />
+                    <line x1="-8" y1="55" x2="-9" y2="88" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
+                    <line x1="8" y1="55" x2="9" y2="88" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
+                    <circle cx="0" cy="36" r="11" fill="none" stroke={theme.glow} strokeWidth="2" strokeDasharray="3 2" />
+                    <g>
+                      {isAnimating && (
+                        <animateTransform
+                          attributeName="transform"
+                          type="rotate"
+                          from="0 0 36"
+                          to="360 0 36"
+                          dur="1.8s"
+                          repeatCount="indefinite"
+                        />
+                      )}
+                      <circle cx="0" cy="26" r="4.5" fill={theme.primary} />
+                    </g>
+                    <text x="0" y="78" textAnchor="middle" className="text-[8px] font-bold fill-amber-300">1.หมุนข้อมือ-ข้อศอก</text>
+                  </g>
+
+                  {/* มุมด้านข้าง: ท่า Plank แขนตึง ดันสะบักขึ้น-ลง */}
+                  <g transform="translate(235, 44)">
+                    <g>
+                      {isAnimating && (
+                        <animateTransform
+                          attributeName="transform"
+                          type="translate"
+                          values="0,0; 0,-7; 0,0"
+                          dur="1.8s"
+                          repeatCount="indefinite"
+                        />
+                      )}
+                      <circle cx="24" cy="42" r="6" fill="#cbd5e1" />
+                      {/* ลำตัวและสะบักในท่าแพลงก์ */}
+                      <line x1="18" y1="46" x2="-12" y2="62" stroke={theme.primary} strokeWidth="9" strokeLinecap="round" />
+                      {/* ขาเหยียดตรงยันปลายเท้า */}
+                      <line x1="-12" y1="62" x2="-34" y2="84" stroke="#94a3b8" strokeWidth="6" strokeLinecap="round" />
+                    </g>
+                    {/* แขนตึงค้ำพื้น */}
+                    <line x1="16" y1="46" x2="18" y2="86" stroke="#e2e8f0" strokeWidth="4.5" strokeLinecap="round" />
+                    <line x1="28" y1="58" x2="28" y2="26" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
+                    <text x="0" y="20" textAnchor="middle" className="text-[8.5px] font-bold fill-emerald-300">2.แขนตึง ดันสะบักขึ้น ↑</text>
+                  </g>
+                </>
+              )}
+
+              {/* ===============================================================
+                  0C. WARMUP_HIP_STRETCH (ก้าวย่อเปิดสะโพก บิดลำตัวชูแขน & โยกข้อเท้า)
+                 =============================================================== */}
+              {bio.pattern === 'WARMUP_HIP_STRETCH' && (
+                <>
+                  {/* มุมด้านหน้า: ก้าวย่อเปิดสะโพก ชูแขนบิดลำตัว */}
+                  <g transform="translate(80, 44)">
+                    <circle cx="0" cy="18" r="6.5" fill="#cbd5e1" />
+                    <rect x="-11" y="27" width="22" height="26" rx="4" fill={theme.primary} />
+                    <line x1="-10" y1="53" x2="-18" y2="88" stroke="#e2e8f0" strokeWidth="5.5" strokeLinecap="round" />
+                    <line x1="10" y1="53" x2="18" y2="88" stroke="#94a3b8" strokeWidth="5.5" strokeLinecap="round" />
+                    <g>
+                      {isAnimating && (
+                        <animateTransform
+                          attributeName="transform"
+                          type="rotate"
+                          values="40 10 30; -25 10 30; 40 10 30"
+                          dur="2.0s"
+                          repeatCount="indefinite"
+                        />
+                      )}
+                      <line x1="10" y1="30" x2="28" y2="4" stroke={theme.glow} strokeWidth="4.5" strokeLinecap="round" />
+                    </g>
+                  </g>
+
+                  {/* มุมด้านข้าง: ก้าวย่อยาว ขาหลังเหยียดตึง ขาหน้าย่อเปิดสะโพกและข้อเท้า */}
+                  <g transform="translate(235, 44)">
+                    <g>
+                      {isAnimating && (
+                        <animateTransform
+                          attributeName="transform"
+                          type="translate"
+                          values="0,0; 6,5; 0,0"
+                          dur="2.0s"
+                          repeatCount="indefinite"
+                        />
+                      )}
+                      <circle cx="8" cy="24" r="6.5" fill="#cbd5e1" />
+                      <line x1="6" y1="32" x2="-6" y2="56" stroke={theme.primary} strokeWidth="8.5" strokeLinecap="round" />
+                      {/* ขาหลังเหยียดยาวเปิดหน้าขา/สะโพก */}
+                      <line x1="-6" y1="56" x2="-34" y2="86" stroke="#94a3b8" strokeWidth="5.5" strokeLinecap="round" />
+                      {/* ขาหน้าก้าวย่อ 90 องศา */}
+                      <polyline points="-6,56 18,56 22,86" fill="none" stroke="#e2e8f0" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+                      {/* แขนบิดชูขึ้นฟ้า */}
+                      <line x1="6" y1="34" x2="18" y2="6" stroke={theme.glow} strokeWidth="4.5" strokeLinecap="round" />
+                    </g>
+                    <text x="-6" y="14" textAnchor="middle" className="text-[8.5px] font-bold fill-emerald-300">ก้าวย่อเปิดสะโพก & ข้อเท้า ↗</text>
+                  </g>
+                </>
+              )}
 
               {/* ===============================================================
                   1A. VERTICAL_PULL_WIDE (ดึงบาร์จับกว้าง Wide-Grip Lat Pulldown / Pull-Up)
@@ -470,16 +705,16 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                     <line x1="0" y1="-4" x2="0" y2="28" stroke="#64748b" strokeWidth="1.5" strokeDasharray="2 2" />
                     <circle cx="0" cy="24" r="6.5" fill="#cbd5e1" />
                     <polygon points="-17,32 17,32 11,64 -11,64" fill={theme.primary} />
+                    <line x1="-8" y1="64" x2="-10" y2="90" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
+                    <line x1="8" y1="64" x2="10" y2="90" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
                     <g>
                       {isAnimating && (
                         <animateTransform attributeName="transform" type="translate" values="0,0; 0,20; 0,0" dur="2.2s" repeatCount="indefinite" />
                       )}
-                      {/* บาร์ยาวจับกว้าง (x = -26 ถึง +26) */}
                       <line x1="-32" y1="8" x2="32" y2="8" stroke={theme.glow} strokeWidth="3.5" strokeLinecap="round" />
                       <line x1="-26" y1="8" x2="-15" y2="32" stroke="#e2e8f0" strokeWidth="4" strokeLinecap="round" />
                       <line x1="26" y1="8" x2="15" y2="32" stroke="#e2e8f0" strokeWidth="4" strokeLinecap="round" />
                     </g>
-                    <text x="0" y="78" textAnchor="middle" className="text-[7.5px] font-bold fill-indigo-300">มือจับกว้างกว่าไหล่</text>
                   </g>
 
                   <g transform="translate(235, 42)">
@@ -487,6 +722,7 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                     <rect x="-16" y="64" width="24" height="5" rx="2" fill="#475569" />
                     <circle cx="-6" cy="24" r="6.5" fill="#cbd5e1" />
                     <line x1="-5" y1="32" x2="-2" y2="62" stroke={theme.primary} strokeWidth="10" strokeLinecap="round" />
+                    <polyline points="-2,62 12,64 12,88" fill="none" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
                     <g>
                       {isAnimating && (
                         <animateTransform attributeName="transform" type="translate" values="0,0; -3,22; 0,0" dur="2.2s" repeatCount="indefinite" />
@@ -495,7 +731,7 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                       <line x1="-3" y1="34" x2="6" y2="10" stroke="#e2e8f0" strokeWidth="4.5" strokeLinecap="round" />
                     </g>
                     <line x1="22" y1="6" x2="18" y2="38" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
-                    <text x="26" y="22" className="text-[7.5px] font-bold fill-emerald-300">ดึงลงอกบน ↓</text>
+                    <text x="26" y="22" className="text-[8.5px] font-bold fill-emerald-300">ดึงลงอกบน ↓</text>
                   </g>
                 </>
               )}
@@ -509,16 +745,16 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                     <line x1="0" y1="-4" x2="0" y2="28" stroke="#64748b" strokeWidth="1.5" strokeDasharray="2 2" />
                     <circle cx="0" cy="24" r="6.5" fill="#cbd5e1" />
                     <polygon points="-15,32 15,32 12,64 -12,64" fill={theme.primary} />
+                    <line x1="-8" y1="64" x2="-10" y2="90" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
+                    <line x1="8" y1="64" x2="10" y2="90" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
                     <g>
                       {isAnimating && (
                         <animateTransform attributeName="transform" type="translate" values="0,0; 0,22; 0,0" dur="2.2s" repeatCount="indefinite" />
                       )}
-                      {/* มือจับแคบชิดกันตรงกลาง (V-Bar / Close Grip x = -6 ถึง +6) */}
                       <polygon points="0,2 -9,12 9,12" fill="none" stroke={theme.glow} strokeWidth="3" />
                       <line x1="-6" y1="12" x2="-9" y2="34" stroke="#e2e8f0" strokeWidth="4.5" strokeLinecap="round" />
                       <line x1="6" y1="12" x2="9" y2="34" stroke="#e2e8f0" strokeWidth="4.5" strokeLinecap="round" />
                     </g>
-                    <text x="0" y="78" textAnchor="middle" className="text-[7.5px] font-bold fill-amber-300">มือจับแคบชิดกัน (Close Grip)</text>
                   </g>
 
                   <g transform="translate(235, 42)">
@@ -526,7 +762,7 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                     <rect x="-16" y="64" width="24" height="5" rx="2" fill="#475569" />
                     <circle cx="-6" cy="24" r="6.5" fill="#cbd5e1" />
                     <line x1="-5" y1="32" x2="-2" y2="62" stroke={theme.primary} strokeWidth="10" strokeLinecap="round" />
-                    {/* มุมข้างของท่าจับแคบ: ศอกพุ่งมาด้านหน้าและกดลงแนบลำตัว */}
+                    <polyline points="-2,62 12,64 12,88" fill="none" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
                     <g>
                       {isAnimating && (
                         <animateTransform attributeName="transform" type="translate" values="0,0; -4,24; 0,0" dur="2.2s" repeatCount="indefinite" />
@@ -535,7 +771,7 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                       <polyline points="-3,34 12,26 10,10" fill="none" stroke="#e2e8f0" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
                     </g>
                     <line x1="24" y1="8" x2="20" y2="42" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
-                    <text x="28" y="26" className="text-[7.5px] font-bold fill-emerald-300">หุบศอกดึงลง ↓</text>
+                    <text x="28" y="26" className="text-[8.5px] font-bold fill-emerald-300">หุบศอกดึงลง ↓</text>
                   </g>
                 </>
               )}
@@ -548,8 +784,9 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                   <g transform="translate(80, 42)">
                     <line x1="0" y1="-4" x2="0" y2="36" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="2 2" />
                     <circle cx="0" cy="12" r="6.5" fill="#cbd5e1" />
-                    <rect x="-12" y="21" width="24" height="36" rx="4" fill="#475569" />
-                    {/* ต้นแขนล็อกแนบลำตัว ไฮไลท์หลังแขนสีม่วง */}
+                    <rect x="-12" y="21" width="24" height="34" rx="4" fill="#475569" />
+                    <line x1="-8" y1="55" x2="-9" y2="88" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
+                    <line x1="8" y1="55" x2="9" y2="88" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
                     <rect x="-18" y="23" width="6" height="20" rx="3" fill={theme.primary} />
                     <rect x="12" y="23" width="6" height="20" rx="3" fill={theme.primary} />
                     <g>
@@ -559,17 +796,16 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                       <line x1="-5" y1="36" x2="-14" y2="48" stroke={theme.glow} strokeWidth="3.5" strokeLinecap="round" />
                       <line x1="5" y1="36" x2="14" y2="48" stroke={theme.glow} strokeWidth="3.5" strokeLinecap="round" />
                     </g>
-                    <text x="0" y="78" textAnchor="middle" className="text-[7.5px] font-bold fill-purple-300">กดเชือกฉีกออกด้านล่าง</text>
                   </g>
 
                   <g transform="translate(235, 42)">
                     <line x1="14" y1="-4" x2="14" y2="44" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="2 2" />
                     <circle cx="-4" cy="12" r="6.5" fill="#cbd5e1" />
-                    <rect x="-10" y="21" width="12" height="38" rx="4" fill="#475569" />
-                    {/* ไฮไลท์กล้ามเนื้อหลังแขน (Triceps) ด้านหลังต้นแขน */}
+                    <rect x="-10" y="21" width="12" height="34" rx="4" fill="#475569" />
+                    <line x1="-6" y1="55" x2="-8" y2="88" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
+                    <line x1="0" y1="55" x2="2" y2="88" stroke="#64748b" strokeWidth="5" strokeLinecap="round" />
                     <rect x="-8" y="23" width="7" height="22" rx="3" fill={theme.primary} />
                     <circle cx="-4" cy="44" r="3.5" fill="#ffffff" />
-                    {/* ปลายแขนหมุนกดลงด้านล่าง (ตรงข้ามกับ Bicep Curl!) */}
                     <g>
                       {isAnimating && (
                         <animateTransform
@@ -584,7 +820,7 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                       <circle cx="16" cy="38" r="4" fill={theme.glow} />
                     </g>
                     <line x1="26" y1="22" x2="26" y2="62" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
-                    <text x="31" y="44" className="text-[7.5px] font-bold fill-emerald-300">กดเหยียดลง ↓</text>
+                    <text x="31" y="44" className="text-[8.5px] font-bold fill-emerald-300">กดเหยียดลง ↓</text>
                   </g>
                 </>
               )}
@@ -596,8 +832,9 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                 <>
                   <g transform="translate(80, 44)">
                     <circle cx="0" cy="24" r="6.5" fill="#cbd5e1" />
-                    <rect x="-12" y="33" width="24" height="34" rx="4" fill="#475569" />
-                    {/* ต้นแขนชูขึ้นแนบใบหู */}
+                    <rect x="-12" y="33" width="24" height="30" rx="4" fill="#475569" />
+                    <line x1="-8" y1="63" x2="-9" y2="88" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
+                    <line x1="8" y1="63" x2="9" y2="88" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
                     <line x1="-11" y1="36" x2="-9" y2="10" stroke={theme.primary} strokeWidth="6" strokeLinecap="round" />
                     <line x1="11" y1="36" x2="9" y2="10" stroke={theme.primary} strokeWidth="6" strokeLinecap="round" />
                     <g>
@@ -610,8 +847,9 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
 
                   <g transform="translate(235, 44)">
                     <circle cx="0" cy="26" r="6.5" fill="#cbd5e1" />
-                    <rect x="-6" y="35" width="12" height="34" rx="4" fill="#475569" />
-                    {/* ต้นแขนชี้ขึ้นฟ้า ข้อศอกอยู่ระดับเหนือหัว */}
+                    <rect x="-6" y="35" width="12" height="30" rx="4" fill="#475569" />
+                    <line x1="-3" y1="65" x2="-5" y2="88" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
+                    <line x1="3" y1="65" x2="5" y2="88" stroke="#64748b" strokeWidth="5" strokeLinecap="round" />
                     <line x1="0" y1="38" x2="2" y2="10" stroke={theme.primary} strokeWidth="6.5" strokeLinecap="round" />
                     <circle cx="2" cy="10" r="3.5" fill="#ffffff" />
                     <g>
@@ -628,7 +866,6 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                       <rect x="-4" y="-14" width="12" height="6" rx="1.5" fill={theme.glow} />
                     </g>
                     <line x1="22" y1="26" x2="22" y2="-8" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
-                    <text x="27" y="12" className="text-[7.5px] font-bold fill-emerald-300">เหยียดขึ้นเหนือหัว ↑</text>
                   </g>
                 </>
               )}
@@ -641,16 +878,17 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                   <g transform="translate(80, 46)">
                     <circle cx="0" cy="18" r="7" fill="#cbd5e1" />
                     <rect x="-12" y="27" width="24" height="28" rx="4" fill="#475569" />
+                    <line x1="-8" y1="55" x2="-9" y2="86" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
+                    <line x1="8" y1="55" x2="9" y2="86" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
                     <rect x="-18" y="28" width="6" height="20" rx="2.5" fill={theme.primary} />
                     <rect x="12" y="28" width="6" height="20" rx="2.5" fill={theme.primary} />
                   </g>
 
                   <g transform="translate(235, 44)">
-                    {/* ลำตัวพับก้มไปด้านหน้า 60 องศา */}
                     <circle cx="16" cy="22" r="6.5" fill="#cbd5e1" />
                     <line x1="12" y1="28" x2="-12" y2="48" stroke="#64748b" strokeWidth="9" strokeLinecap="round" />
-                    <line x1="-12" y1="48" x2="-10" y2="82" stroke="#475569" strokeWidth="6" strokeLinecap="round" />
-                    {/* ต้นแขนล็อกขนานพื้น */}
+                    <line x1="-12" y1="48" x2="-16" y2="86" stroke="#94a3b8" strokeWidth="5.5" strokeLinecap="round" />
+                    <line x1="-8" y1="48" x2="4" y2="86" stroke="#475569" strokeWidth="5.5" strokeLinecap="round" />
                     <line x1="6" y1="32" x2="-12" y2="32" stroke={theme.primary} strokeWidth="6" strokeLinecap="round" />
                     <circle cx="-12" cy="32" r="3.5" fill="#ffffff" />
                     <g>
@@ -667,7 +905,6 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                       <rect x="-36" y="27" width="6" height="10" rx="1.5" fill={theme.glow} />
                     </g>
                     <line x1="-6" y1="16" x2="-36" y2="16" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
-                    <text x="-20" y="10" textAnchor="middle" className="text-[7.5px] font-bold fill-emerald-300">← เตะเหยียดหลังแขน</text>
                   </g>
                 </>
               )}
@@ -679,7 +916,9 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                 <>
                   <g transform="translate(80, 42)">
                     <circle cx="0" cy="12" r="7" fill="#cbd5e1" />
-                    <rect x="-12" y="22" width="24" height="36" rx="4" fill="#475569" />
+                    <rect x="-12" y="22" width="24" height="34" rx="4" fill="#475569" />
+                    <line x1="-8" y1="56" x2="-9" y2="88" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
+                    <line x1="8" y1="56" x2="9" y2="88" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
                     <rect x="-20" y="24" width="7" height="20" rx="3" fill={theme.primary} />
                     <rect x="13" y="24" width="7" height="20" rx="3" fill={theme.primary} />
                     <g>
@@ -693,7 +932,9 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
 
                   <g transform="translate(235, 42)">
                     <circle cx="-6" cy="12" r="6.5" fill="#cbd5e1" />
-                    <rect x="-12" y="21" width="12" height="38" rx="4" fill="#475569" />
+                    <rect x="-12" y="21" width="12" height="34" rx="4" fill="#475569" />
+                    <line x1="-8" y1="55" x2="-10" y2="88" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
+                    <line x1="-3" y1="55" x2="-1" y2="88" stroke="#64748b" strokeWidth="5" strokeLinecap="round" />
                     <rect x="-8" y="24" width="7" height="22" rx="3" fill={theme.primary} />
                     <circle cx="-5" cy="45" r="3.5" fill="#ffffff" />
                     <g>
@@ -710,7 +951,6 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                       <rect x="14" y="38" width="6" height="14" rx="2" fill={theme.glow} />
                     </g>
                     <line x1="26" y1="58" x2="26" y2="20" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
-                    <text x="31" y="40" className="text-[7.5px] font-bold fill-emerald-300">พับหน้าแขนขึ้น ↑</text>
                   </g>
                 </>
               )}
@@ -733,7 +973,6 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                         <animateTransform attributeName="transform" type="translate" values="0,10; 0,-14; 0,10" dur="2.2s" repeatCount="indefinite" />
                       )}
                       <line x1="-28" y1="20" x2="28" y2="20" stroke={theme.glow} strokeWidth="3.5" strokeLinecap="round" />
-                      {/* แสดงความห่างของมือตามจริง (จับแคบ vs จับกว้าง) */}
                       {bio.gripMode === 'close' ? (
                         <>
                           <line x1="-7" y1="20" x2="-9" y2="34" stroke="#e2e8f0" strokeWidth="4.5" strokeLinecap="round" />
@@ -746,14 +985,10 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                         </>
                       )}
                     </g>
-                    <text x="0" y="76" textAnchor="middle" className="text-[7.5px] font-bold fill-rose-300">
-                      {bio.gripMode === 'close' ? 'มือจับแคบ หุบศอก' : 'มือจับกว้างมาตรฐาน'}
-                    </text>
                   </g>
 
                   <g transform="translate(235, 42)">
                     {bio.pattern === 'INCLINE_PRESS' ? (
-                      /* เตียงเอียง 40 องศา */
                       <>
                         <line x1="-24" y1="22" x2="4" y2="62" stroke="#475569" strokeWidth="6" strokeLinecap="round" />
                         <line x1="4" y1="62" x2="18" y2="58" stroke="#475569" strokeWidth="6" strokeLinecap="round" />
@@ -766,10 +1001,8 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                           <line x1="-6" y1="34" x2="-6" y2="14" stroke="#e2e8f0" strokeWidth="4.5" strokeLinecap="round" />
                           <rect x="-13" y="10" width="14" height="6" rx="2" fill={theme.glow} />
                         </g>
-                        <text x="-26" y="54" textAnchor="end" className="text-[7px] font-bold fill-sky-300">เบาะเอียง 40°</text>
                       </>
                     ) : (
-                      /* เตียงราบ 0 องศา */
                       <>
                         <rect x="-28" y="52" width="52" height="5" rx="2" fill="#475569" />
                         <circle cx="-20" cy="43" r="6" fill="#cbd5e1" />
@@ -784,7 +1017,6 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                       </>
                     )}
                     <line x1="20" y1="38" x2="20" y2="6" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
-                    <text x="25" y="22" className="text-[7.5px] font-bold fill-emerald-300">ดันขึ้น ↑</text>
                   </g>
                 </>
               )}
@@ -797,46 +1029,264 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                   <g transform="translate(80, 44)">
                     <circle cx="0" cy="18" r="7" fill="#cbd5e1" />
                     <rect x="-14" y="28" width="28" height="24" rx="6" fill={theme.primary} />
-                    <line x1="-10" y1="52" x2="-12" y2="82" stroke="#cbd5e1" strokeWidth="5" strokeLinecap="round" />
-                    <line x1="10" y1="52" x2="12" y2="82" stroke="#cbd5e1" strokeWidth="5" strokeLinecap="round" />
-                    <text x="0" y="76" textAnchor="middle" className="text-[7.5px] font-bold fill-emerald-300">บีบเกร็งก้นและสะโพก</text>
+                    <line x1="-10" y1="52" x2="-12" y2="86" stroke="#cbd5e1" strokeWidth="5.5" strokeLinecap="round" />
+                    <line x1="10" y1="52" x2="12" y2="86" stroke="#cbd5e1" strokeWidth="5.5" strokeLinecap="round" />
                   </g>
 
                   <g transform="translate(235, 44)">
-                    {/* ม้านั่งรองสะบักด้านหลัง */}
-                    <rect x="-32" y="46" width="16" height="38" rx="3" fill="#475569" />
+                    <rect x="-32" y="46" width="16" height="40" rx="3" fill="#475569" />
                     <circle cx="-22" cy="36" r="6" fill="#cbd5e1" />
                     <g>
                       {isAnimating && (
                         <animateTransform attributeName="transform" type="translate" values="0,16; 0,-4; 0,16" dur="2.2s" repeatCount="indefinite" />
                       )}
-                      {/* ลำตัวและสะโพกที่ดันขึ้นขนานพื้น */}
                       <line x1="-18" y1="44" x2="8" y2="44" stroke={theme.primary} strokeWidth="9" strokeLinecap="round" />
                       <circle cx="2" cy="38" r="5.5" fill={theme.glow} />
                       <line x1="8" y1="44" x2="22" y2="54" stroke={theme.primary} strokeWidth="6" strokeLinecap="round" />
                     </g>
-                    <line x1="22" y1="52" x2="22" y2="84" stroke="#cbd5e1" strokeWidth="5" strokeLinecap="round" />
+                    <line x1="22" y1="52" x2="22" y2="86" stroke="#cbd5e1" strokeWidth="5.5" strokeLinecap="round" />
                     <line x1="2" y1="68" x2="2" y2="18" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
-                    <text x="8" y="24" className="text-[7.5px] font-bold fill-emerald-300">ดันสะโพกบีบก้น ↑</text>
                   </g>
                 </>
               )}
 
               {/* ===============================================================
-                  8. รูปแบบอื่นๆ ทั้งหมด (CHEST_FLY, PUSHUP_DIP, HORIZONTAL_ROW, SHOULDER, SQUAT, LUNGE, DEADLIFT, CARDIO)
+                  8A. SHOULDER_PRESS & LATERAL_RAISE & SHRUG (ยืน/นั่งตัวตรง ขา 2 ข้างนิ่ง ดัน/กางเฉพาะหัวไหล่!)
                  =============================================================== */}
-              {(bio.pattern === 'CHEST_FLY' ||
-                bio.pattern === 'PUSHUP_DIP' ||
-                bio.pattern === 'HORIZONTAL_ROW' ||
-                bio.pattern === 'SHOULDER_PRESS' ||
-                bio.pattern === 'LATERAL_RAISE' ||
-                bio.pattern === 'SHRUG_FARMER' ||
-                bio.pattern === 'SQUAT_BILATERAL' ||
-                bio.pattern === 'LUNGE_UNILATERAL' ||
+              {(bio.pattern === 'SHOULDER_PRESS' || bio.pattern === 'LATERAL_RAISE' || bio.pattern === 'SHRUG_FARMER') && (
+                <>
+                  <g transform="translate(80, 44)">
+                    <circle cx="0" cy="14" r="7" fill="#cbd5e1" />
+                    <rect x="-12" y="23" width="24" height="32" rx="4" fill="#475569" />
+                    <circle cx="-14" cy="26" r="5" fill={theme.primary} />
+                    <circle cx="14" cy="26" r="5" fill={theme.primary} />
+                    {/* ขา 2 ข้างยืนนิ่งมั่นคง ไม่ย่อเข่า */}
+                    <line x1="-8" y1="55" x2="-9" y2="88" stroke="#94a3b8" strokeWidth="5.5" strokeLinecap="round" />
+                    <line x1="8" y1="55" x2="9" y2="88" stroke="#94a3b8" strokeWidth="5.5" strokeLinecap="round" />
+
+                    {bio.pattern === 'LATERAL_RAISE' ? (
+                      <>
+                        <g>
+                          {isAnimating && (
+                            <animateTransform attributeName="transform" type="rotate" values="65 -14 26; 0 -14 26; 65 -14 26" dur="2.0s" repeatCount="indefinite" />
+                          )}
+                          <line x1="-14" y1="26" x2="-38" y2="26" stroke="#e2e8f0" strokeWidth="4.5" strokeLinecap="round" />
+                          <rect x="-42" y="22" width="6" height="8" rx="1.5" fill={theme.glow} />
+                        </g>
+                        <g>
+                          {isAnimating && (
+                            <animateTransform attributeName="transform" type="rotate" values="-65 14 26; 0 14 26; -65 14 26" dur="2.0s" repeatCount="indefinite" />
+                          )}
+                          <line x1="14" y1="26" x2="38" y2="26" stroke="#e2e8f0" strokeWidth="4.5" strokeLinecap="round" />
+                          <rect x="36" y="22" width="6" height="8" rx="1.5" fill={theme.glow} />
+                        </g>
+                      </>
+                    ) : (
+                      <g>
+                        {isAnimating && (
+                          <animateTransform attributeName="transform" type="translate" values="0,12; 0,-12; 0,12" dur="2.0s" repeatCount="indefinite" />
+                        )}
+                        <line x1="-16" y1="26" x2="-20" y2="4" stroke="#e2e8f0" strokeWidth="4.5" strokeLinecap="round" />
+                        <line x1="16" y1="26" x2="20" y2="4" stroke="#e2e8f0" strokeWidth="4.5" strokeLinecap="round" />
+                        <rect x="-26" y="0" width="12" height="5" rx="1.5" fill={theme.glow} />
+                        <rect x="14" y="0" width="12" height="5" rx="1.5" fill={theme.glow} />
+                      </g>
+                    )}
+                  </g>
+
+                  <g transform="translate(235, 44)">
+                    <circle cx="0" cy="14" r="6.5" fill="#cbd5e1" />
+                    <rect x="-7" y="23" width="14" height="32" rx="4" fill="#475569" />
+                    <circle cx="0" cy="26" r="5.5" fill={theme.primary} />
+                    <line x1="-4" y1="55" x2="-6" y2="88" stroke="#94a3b8" strokeWidth="5.5" strokeLinecap="round" />
+                    <line x1="4" y1="55" x2="6" y2="88" stroke="#64748b" strokeWidth="5.5" strokeLinecap="round" />
+                    <g>
+                      {isAnimating && (
+                        <animateTransform attributeName="transform" type="translate" values="0,12; 0,-14; 0,12" dur="2.0s" repeatCount="indefinite" />
+                      )}
+                      <line x1="0" y1="26" x2="0" y2="2" stroke="#e2e8f0" strokeWidth="5" strokeLinecap="round" />
+                      <rect x="-7" y="-2" width="14" height="6" rx="2" fill={theme.glow} />
+                    </g>
+                    <line x1="22" y1="36" x2="22" y2="-4" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
+                  </g>
+                </>
+              )}
+
+              {/* ===============================================================
+                  8B. BULGARIAN_SPLIT_SQUAT (สควอทขาเดียว วางหลังเท้าพาดม้านั่งด้านหลัง เห็นครบ 2 ขา!)
+                 =============================================================== */}
+              {bio.pattern === 'BULGARIAN_SPLIT_SQUAT' && (
+                <>
+                  {/* มุมด้านหน้า: ยืนขาหน้าเป็นหลัก ขาหลังพาดม้านั่ง */}
+                  <g transform="translate(80, 42)">
+                    <rect x="-20" y="64" width="40" height="6" rx="2" fill="#475569" />
+                    <g>
+                      {isAnimating && (
+                        <animateTransform attributeName="transform" type="translate" values="0,0; 0,14; 0,0" dur="2.1s" repeatCount="indefinite" />
+                      )}
+                      <circle cx="0" cy="10" r="6.5" fill="#cbd5e1" />
+                      <rect x="-11" y="19" width="22" height="28" rx="4" fill={theme.primary} />
+                      {/* ดัมเบลถือข้างลำตัว */}
+                      <rect x="-19" y="38" width="6" height="12" rx="2" fill={theme.glow} />
+                      <rect x="13" y="38" width="6" height="12" rx="2" fill={theme.glow} />
+                    </g>
+                    <line x1="-5" y1="48" x2="-5" y2="88" stroke="#e2e8f0" strokeWidth="6" strokeLinecap="round" />
+                    <line x1="6" y1="48" x2="10" y2="66" stroke="#64748b" strokeWidth="4.5" strokeLinecap="round" />
+                  </g>
+
+                  {/* มุมด้านข้าง: เห็นม้านั่งด้านหลัง + ขาหลังพาดม้านั่ง + ขาหน้าย่อ 90° ชัดเจน! */}
+                  <g transform="translate(235, 42)">
+                    {/* ม้านั่งรองหลังเท้าด้านหลัง */}
+                    <rect x="-38" y="62" width="18" height="6" rx="2" fill="#64748b" />
+                    <line x1="-34" y1="68" x2="-34" y2="88" stroke="#475569" strokeWidth="4" />
+                    <line x1="-24" y1="68" x2="-24" y2="88" stroke="#475569" strokeWidth="4" />
+
+                    <g>
+                      {isAnimating && (
+                        <animateTransform attributeName="transform" type="translate" values="0,0; 0,14; 0,0" dur="2.1s" repeatCount="indefinite" />
+                      )}
+                      <circle cx="2" cy="10" r="6.5" fill="#cbd5e1" />
+                      <line x1="2" y1="18" x2="-2" y2="48" stroke={theme.primary} strokeWidth="9" strokeLinecap="round" />
+                      {/* ขาหลัง (Rear Leg) ยื่นไปพาดบนม้านั่งด้านหลัง */}
+                      <polyline points="-2,48 -14,68 -28,62" fill="none" stroke="#94a3b8" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
+                      {/* ต้นขาหน้า (Front Thigh) ย่อรับน้ำหนัก */}
+                      <line x1="-2" y1="48" x2="18" y2="62" stroke={theme.glow} strokeWidth="6.5" strokeLinecap="round" />
+                    </g>
+                    {/* หน้าแข้งขาหน้าตั้งฉากกับพื้น */}
+                    <line x1="18" y1="60" x2="18" y2="88" stroke="#e2e8f0" strokeWidth="6" strokeLinecap="round" />
+                    <line x1="30" y1="72" x2="30" y2="24" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
+                  </g>
+                </>
+              )}
+
+              {/* ===============================================================
+                  8C. LUNGE_UNILATERAL (Walking Lunges / Step-Up เห็นขาหน้า + ขาหลังครบ 2 ข้าง!)
+                 =============================================================== */}
+              {bio.pattern === 'LUNGE_UNILATERAL' && (
+                <>
+                  <g transform="translate(80, 42)">
+                    <g>
+                      {isAnimating && (
+                        <animateTransform attributeName="transform" type="translate" values="0,0; 0,14; 0,0" dur="2.1s" repeatCount="indefinite" />
+                      )}
+                      <circle cx="0" cy="10" r="6.5" fill="#cbd5e1" />
+                      <rect x="-11" y="19" width="22" height="28" rx="4" fill={theme.primary} />
+                    </g>
+                    <line x1="-7" y1="48" x2="-7" y2="88" stroke="#e2e8f0" strokeWidth="6" strokeLinecap="round" />
+                    <line x1="7" y1="48" x2="7" y2="84" stroke="#64748b" strokeWidth="5" strokeLinecap="round" />
+                  </g>
+
+                  <g transform="translate(235, 42)">
+                    <g>
+                      {isAnimating && (
+                        <animateTransform attributeName="transform" type="translate" values="0,0; 0,14; 0,0" dur="2.1s" repeatCount="indefinite" />
+                      )}
+                      <circle cx="0" cy="10" r="6.5" fill="#cbd5e1" />
+                      <line x1="0" y1="18" x2="-2" y2="48" stroke={theme.primary} strokeWidth="9" strokeLinecap="round" />
+                      {/* ขาหลังย่อเข่าลงใกล้พื้น */}
+                      <polyline points="-2,48 -14,72 -28,74" fill="none" stroke="#94a3b8" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
+                      {/* ต้นขาหน้าก้าวออกไปด้านหน้า */}
+                      <line x1="-2" y1="48" x2="18" y2="60" stroke={theme.glow} strokeWidth="6.5" strokeLinecap="round" />
+                    </g>
+                    <line x1="18" y1="58" x2="18" y2="88" stroke="#e2e8f0" strokeWidth="6" strokeLinecap="round" />
+                    <line x1="30" y1="72" x2="30" y2="24" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
+                  </g>
+                </>
+              )}
+
+              {/* ===============================================================
+                  8D. CARDIO_INCLINE (เดินชันลู่วิ่ง: มุมข้างมีขาครบ 2 ข้าง ก้าวเดินสลับซ้าย-ขวา!)
+                 =============================================================== */}
+              {bio.pattern === 'CARDIO_INCLINE' && (
+                <>
+                  {/* มุมด้านหน้า: ก้าวเดิน 2 ขาสลับซ้าย-ขวา */}
+                  <g transform="translate(80, 42)">
+                    <circle cx="0" cy="12" r="6.5" fill="#cbd5e1" />
+                    <rect x="-11" y="21" width="22" height="28" rx="4" fill={theme.primary} />
+                    {/* ขาซ้าย */}
+                    <g>
+                      {isAnimating && (
+                        <animateTransform attributeName="transform" type="translate" values="0,-5; 0,5; 0,-5" dur="1.1s" repeatCount="indefinite" />
+                      )}
+                      <line x1="-6" y1="49" x2="-7" y2="84" stroke="#e2e8f0" strokeWidth="5.5" strokeLinecap="round" />
+                    </g>
+                    {/* ขาขวา */}
+                    <g>
+                      {isAnimating && (
+                        <animateTransform attributeName="transform" type="translate" values="0,5; 0,-5; 0,5" dur="1.1s" repeatCount="indefinite" />
+                      )}
+                      <line x1="6" y1="49" x2="7" y2="84" stroke="#94a3b8" strokeWidth="5.5" strokeLinecap="round" />
+                    </g>
+                  </g>
+
+                  {/* มุมด้านข้าง: สายพานลู่วิ่งชัน + ขา 2 ข้างก้าวสลับกัน + แขนแกว่ง 2 ข้าง */}
+                  <g transform="translate(235, 42)">
+                    {/* สายพานลู่วิ่งปรับความชัน (Incline Deck) และเสาหน้าลู่วิ่ง */}
+                    <line x1="-36" y1="88" x2="34" y2="64" stroke={theme.glow} strokeWidth="5.5" strokeLinecap="round" />
+                    <line x1="28" y1="64" x2="22" y2="18" stroke="#64748b" strokeWidth="3.5" strokeLinecap="round" />
+                    <line x1="22" y1="18" x2="10" y2="24" stroke="#94a3b8" strokeWidth="3.5" strokeLinecap="round" />
+
+                    {/* ศีรษะและลำตัวโน้มหน้าเล็กน้อยสู้ความชัน */}
+                    <circle cx="2" cy="10" r="6.5" fill="#cbd5e1" />
+                    <line x1="0" y1="18" x2="-4" y2="48" stroke={theme.primary} strokeWidth="8.5" strokeLinecap="round" />
+
+                    {/* ขาข้างที่ 1 (ด้านใน - สีเทาฟ้า) ก้าวสลับตรงข้ามกับขาข้างที่ 2 */}
+                    <g>
+                      {isAnimating && (
+                        <animateTransform
+                          attributeName="transform"
+                          type="rotate"
+                          values="24 -4 48; -24 -4 48; 24 -4 48"
+                          dur="1.1s"
+                          repeatCount="indefinite"
+                        />
+                      )}
+                      <polyline points="-4,48 -8,64 -14,80" fill="none" stroke="#64748b" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </g>
+
+                    {/* ขาข้างที่ 2 (ด้านหน้า - สีขาวสว่าง) ก้าวสลับซ้าย-ขวา */}
+                    <g>
+                      {isAnimating && (
+                        <animateTransform
+                          attributeName="transform"
+                          type="rotate"
+                          values="-24 -4 48; 24 -4 48; -24 -4 48"
+                          dur="1.1s"
+                          repeatCount="indefinite"
+                        />
+                      )}
+                      <polyline points="-4,48 4,62 8,76" fill="none" stroke="#e2e8f0" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </g>
+
+                    {/* แขนแกว่งขณะเดินชัน */}
+                    <g>
+                      {isAnimating && (
+                        <animateTransform
+                          attributeName="transform"
+                          type="rotate"
+                          values="20 -1 24; -20 -1 24; 20 -1 24"
+                          dur="1.1s"
+                          repeatCount="indefinite"
+                        />
+                      )}
+                      <polyline points="-1,24 2,38 10,34" fill="none" stroke="#cbd5e1" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                    </g>
+
+                    <line x1="-28" y1="74" x2="18" y2="58" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
+                  </g>
+                </>
+              )}
+
+              {/* ===============================================================
+                  8E. ท่าอื่นๆ (SQUAT_BILATERAL, DEADLIFT_HINGE, HORIZONTAL_ROW, PUSHUP_DIP, CHEST_FLY, LEG_ISOLATION, CORE_CRUNCH)
+                 =============================================================== */}
+              {(bio.pattern === 'SQUAT_BILATERAL' ||
                 bio.pattern === 'DEADLIFT_HINGE' ||
+                bio.pattern === 'HORIZONTAL_ROW' ||
+                bio.pattern === 'PUSHUP_DIP' ||
+                bio.pattern === 'CHEST_FLY' ||
                 bio.pattern === 'LEG_ISOLATION' ||
-                bio.pattern === 'CORE_CRUNCH' ||
-                bio.pattern === 'CARDIO_INCLINE') && (
+                bio.pattern === 'CORE_CRUNCH') && (
                 <>
                   {/* มุมด้านหน้า */}
                   <g transform="translate(80, 42)">
@@ -846,11 +1296,11 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                           attributeName="transform"
                           type="translate"
                           values={
-                            bio.pattern === 'SQUAT_BILATERAL' || bio.pattern === 'LUNGE_UNILATERAL' || bio.pattern === 'PUSHUP_DIP'
-                              ? '0,0; 0,16; 0,0'
-                              : '0,6; 0,-8; 0,6'
+                            bio.pattern === 'SQUAT_BILATERAL' || bio.pattern === 'PUSHUP_DIP' || bio.pattern === 'DEADLIFT_HINGE'
+                              ? '0,0; 0,14; 0,0'
+                              : '0,4; 0,-6; 0,4'
                           }
-                          dur="2.2s"
+                          dur="2.1s"
                           repeatCount="indefinite"
                         />
                       )}
@@ -858,29 +1308,18 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                       <rect x="-12" y="19" width="24" height="30" rx="4" fill={theme.primary} />
                       <line x1="-24" y1="24" x2="24" y2="24" stroke={theme.glow} strokeWidth="3.5" strokeLinecap="round" />
                     </g>
-                    <line x1="-10" y1="52" x2="-10" y2="84" stroke="#94a3b8" strokeWidth="4.5" strokeLinecap="round" />
-                    <line x1="10" y1="52" x2="10" y2="84" stroke="#94a3b8" strokeWidth="4.5" strokeLinecap="round" />
+                    <line x1="-10" y1="52" x2="-10" y2="86" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
+                    <line x1="10" y1="52" x2="10" y2="86" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
                   </g>
 
                   {/* มุมด้านข้าง */}
                   <g transform="translate(235, 42)">
-                    {bio.pattern === 'CARDIO_INCLINE' ? (
-                      <>
-                        <line x1="-34" y1="86" x2="34" y2="62" stroke={theme.glow} strokeWidth="5" strokeLinecap="round" />
-                        <circle cx="2" cy="10" r="6.5" fill="#cbd5e1" />
-                        <line x1="0" y1="18" x2="-4" y2="48" stroke={theme.primary} strokeWidth="8" strokeLinecap="round" />
-                        <g>
-                          {isAnimating && (
-                            <animateTransform attributeName="transform" type="rotate" values="-18 -4 48; 18 -4 48; -18 -4 48" dur="1.4s" repeatCount="indefinite" />
-                          )}
-                          <line x1="-4" y1="48" x2="-12" y2="78" stroke="#e2e8f0" strokeWidth="5" strokeLinecap="round" />
-                        </g>
-                        <line x1="-24" y1="68" x2="24" y2="52" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
-                      </>
-                    ) : bio.pattern === 'HORIZONTAL_ROW' ? (
+                    {bio.pattern === 'HORIZONTAL_ROW' ? (
                       <>
                         <circle cx="-8" cy="14" r="6.5" fill="#cbd5e1" />
-                        <rect x="-14" y="23" width="13" height="36" rx="4" fill={theme.primary} />
+                        <rect x="-14" y="23" width="13" height="34" rx="4" fill={theme.primary} />
+                        <line x1="-10" y1="57" x2="-12" y2="86" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
+                        <line x1="-4" y1="57" x2="-2" y2="86" stroke="#64748b" strokeWidth="5" strokeLinecap="round" />
                         <g>
                           {isAnimating && (
                             <animateTransform attributeName="transform" type="translate" values="16,0; -4,0; 16,0" dur="2.1s" repeatCount="indefinite" />
@@ -889,21 +1328,34 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
                           <rect x="16" y="30" width="6" height="16" rx="2" fill={theme.glow} />
                         </g>
                         <line x1="30" y1="22" x2="2" y2="22" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
-                        <text x="16" y="15" textAnchor="middle" className="text-[7.5px] font-bold fill-emerald-300">← ดึงบีบสะบัก</text>
                       </>
-                    ) : (
+                    ) : bio.pattern === 'PUSHUP_DIP' ? (
                       <>
                         <g>
                           {isAnimating && (
-                            <animateTransform attributeName="transform" type="translate" values="0,0; -6,16; 0,0" dur="2.2s" repeatCount="indefinite" />
+                            <animateTransform attributeName="transform" type="translate" values="0,0; 0,14; 0,0" dur="2.0s" repeatCount="indefinite" />
+                          )}
+                          <circle cx="22" cy="40" r="6" fill="#cbd5e1" />
+                          <line x1="16" y1="44" x2="-14" y2="58" stroke={theme.primary} strokeWidth="9" strokeLinecap="round" />
+                          <line x1="-14" y1="58" x2="-34" y2="84" stroke="#94a3b8" strokeWidth="6" strokeLinecap="round" />
+                        </g>
+                        <line x1="14" y1="46" x2="16" y2="86" stroke="#e2e8f0" strokeWidth="4.5" strokeLinecap="round" />
+                        <line x1="28" y1="68" x2="28" y2="24" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
+                      </>
+                    ) : (
+                      /* Squat 2 ขา / Deadlift RDL */
+                      <>
+                        <g>
+                          {isAnimating && (
+                            <animateTransform attributeName="transform" type="translate" values="0,0; -6,15; 0,0" dur="2.1s" repeatCount="indefinite" />
                           )}
                           <circle cx="0" cy="10" r="6.5" fill="#cbd5e1" />
-                          <line x1="0" y1="18" x2="-8" y2="46" stroke={theme.primary} strokeWidth="8" strokeLinecap="round" />
+                          <line x1="0" y1="18" x2="-8" y2="46" stroke={theme.primary} strokeWidth="8.5" strokeLinecap="round" />
                           <line x1="-8" y1="46" x2="10" y2="64" stroke={theme.primary} strokeWidth="6.5" strokeLinecap="round" />
                         </g>
-                        <line x1="10" y1="64" x2="4" y2="86" stroke="#cbd5e1" strokeWidth="5" strokeLinecap="round" />
+                        <line x1="6" y1="64" x2="0" y2="86" stroke="#64748b" strokeWidth="5" strokeLinecap="round" />
+                        <line x1="10" y1="64" x2="4" y2="86" stroke="#cbd5e1" strokeWidth="5.5" strokeLinecap="round" />
                         <line x1="26" y1="68" x2="26" y2="22" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
-                        <text x="31" y="44" className="text-[7.5px] font-bold fill-emerald-300">ออกแรง ↑</text>
                       </>
                     )}
                   </g>

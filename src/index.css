@@ -1,6 +1,33 @@
 @import "tailwindcss";
 
+html {
+  /* ขยายสเกลฟอนต์พื้นฐานทั้งแอปให้อ่านง่ายขึ้นทั้งบนมือถือและคอม */
+  font-size: 17px;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 17.5px;
+  }
+}
+
 body {
   font-family: 'Noto Sans Thai', sans-serif;
-  background-color: #f3f4f6; 
+  background-color: #f3f4f6;
+  line-height: 1.55;
+}
+
+/* ยกเลิกตัวหนังสือขนาดจิ๋วทั้งหมดในแอป บังคับให้อ่านชัดบนจอมือถือ */
+[class*="text-[8px]"],
+[class*="text-[9px]"],
+[class*="text-[10px]"],
+[class*="text-[11px]"] {
+  font-size: 0.82rem !important;
+  line-height: 1.35 !important;
+}
+
+.text-xs {
+  font-size: 0.86rem !important;
+  line-height: 1.4 !important;
 }

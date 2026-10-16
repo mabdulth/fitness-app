@@ -3,119 +3,119 @@ import { supabase } from '../supabaseClient'
 import ExerciseIllustration, { getExerciseYouTubeUrl } from './ExerciseIllustration'
 
 // ============================================================================
-// MASTER EXERCISE LIBRARY (ครบ 95 ท่ามาตรฐาน: เพิ่ม 10 ท่าวอร์มร่างกายสำหรับมือใหม่ + เวท + คาลิสเธนิกส์ + เดินป่า)
+// MASTER EXERCISE LIBRARY (ครบ 95 ท่ามาตรฐาน: 10 ท่าวอร์มร่างกาย + 85 ท่าเวท/คาลิสเธนิกส์/เดินป่า)
 // ============================================================================
 export const MASTER_EXERCISE_LIBRARY = [
   // ================= 0. WARM-UP & DYNAMIC MOBILITY (ท่าวอร์มร่างกายก่อนฝึก: 10 ท่า) =================
   {
-    name: 'Arm Circles & Scapular Swings (หมุนหัวไหล่และเหวี่ยงแขนสลับเปิดสะบัก)',
+    name: 'Arm Circles & Scapular Swings (หมุนหัวไหล่และเหวี่ยงแขนเปิดหน้าอก)',
     muscle: 'Warmup',
-    sub_muscle: 'Shoulder Rotator Cuff, Scapula & Chest Opener (วอร์มข้อต่อหัวไหล่ สะบัก และหน้าอก)',
+    sub_muscle: 'วอร์มข้อต่อหัวไหล่ สะบัก และหน้าอก ก่อนเล่นอก/ไหล่/หลัง',
     type: 'Bodyweight',
     difficulty: 'Beginner',
     kcal_per_unit: 5,
     is_warmup: true,
     warmup_focus: 'upper',
-    warmup_guide_th: '1.ยืนตรงกางแขนระดับไหล่ หมุนแขนเป็นวงกลมเล็กไปใหญ่เดินหน้า 15 รอบ และถอยหลัง 15 รอบ • 2.เหวี่ยงแขนไขว้สลับหน้าอกซ้าย-ขวา 15 ครั้ง เพื่อเพิ่มน้ำหล่อเลี้ยงข้อไหล่ก่อนเล่นอก/ไหล่/หลัง'
+    warmup_guide_th: 'ยืนตรงหมุนไหล่หน้า-หลัง 15 รอบ + เหวี่ยงแขนสลับหน้าอก 15 ครั้ง'
   },
   {
-    name: 'Scapular Push-Up & Wrist Warm-Up (วอร์มสะบักและหมุนข้อมือ-ข้อศอกเตรียมรับน้ำหนัก)',
+    name: 'Scapular Push-Up & Wrist Warm-Up (หมุนข้อมือและดันสะบักท่าแพลงก์)',
     muscle: 'Warmup',
-    sub_muscle: 'Serratus Anterior, Scapula & Wrist Joints (ปลุกกล้ามเนื้อสะบักและเซฟข้อมือ-ข้อศอก)',
+    sub_muscle: 'ปลุกกล้ามเนื้อสะบักและเซฟข้อมือ-ข้อศอกก่อนดันเวท',
     type: 'Bodyweight',
     difficulty: 'Beginner',
     kcal_per_unit: 5,
     is_warmup: true,
     warmup_focus: 'upper',
-    warmup_guide_th: '1.ประสานมือหมุนข้อมือและพับเหยียดข้อศอก 15 รอบ • 2.ตั้งท่าแพลงก์แขนตึง (หรือคุกเข่า) บีบสะบักลงแล้วดันสะบักขึ้นสุดระยะ 12-15 ครั้ง โดยไม่ندงอศอก ช่วยป้องกันไหล่จมตอนดันอก'
+    warmup_guide_th: 'หมุนข้อมือ 15 รอบ + ตั้งท่าแพลงก์แขนตึงดันสะบักขึ้น-ลง 12 ครั้ง'
   },
   {
     name: 'Dynamic Chest Opener & Torso Twist (กางแขนเปิดหน้าอกและบิดลำตัวซ้าย-ขวา)',
     muscle: 'Warmup',
-    sub_muscle: 'Pectoralis, Thoracic Spine & Core Warm-Up (ยืดเปิดทรวงอกและปลุกแกนกลางลำตัว)',
+    sub_muscle: 'ยืดเปิดทรวงอกและปลุกแกนกลางลำตัว',
     type: 'Bodyweight',
     difficulty: 'Beginner',
     kcal_per_unit: 5,
     is_warmup: true,
     warmup_focus: 'upper',
-    warmup_guide_th: '1.ตั้งศอกระดับอก ดึงศอกไปด้านหลังเปิดหน้าอก 2 จังหวะ แล้วเหยียดแขนกางออก • 2.บิดลำตัวซ้าย-ขวาอย่างนุ่มนวลพร้อมเปิดส้นเท้าตาม 15 ครั้ง เพื่อให้หลังส่วนบนและหน้าอกพร้อมออกแรง'
+    warmup_guide_th: 'กางแขนดึงศอกเปิดอก + บิดลำตัวซ้าย-ขวา 15 ครั้ง'
   },
   {
-    name: 'Band / Towel Shoulder Dislocates & Face Pull Warm-Up (จับผ้าขนหนู/ยางยืดวาดเปิดไหล่)',
+    name: 'Towel / Band Shoulder Dislocates (จับผ้าขนหนูวาดแขนเปิดหัวไหล่)',
     muscle: 'Warmup',
-    sub_muscle: 'Rear Delts, External Rotators & Upper Back (วอร์มเอ็นหมุนข้อไหล่ ป้องกันไหล่บาดเจ็บ 100%)',
+    sub_muscle: 'วอร์มเอ็นหมุนข้อไหล่ ป้องกันไหล่บาดเจ็บ',
     type: 'Bodyweight',
     difficulty: 'Beginner',
     kcal_per_unit: 5,
     is_warmup: true,
     warmup_focus: 'upper',
-    warmup_guide_th: '1.ใช้มือจับผ้าขนหนูหรือยางยืดกว้างกว่าไหล่ ยกวาดขึ้นเหนือศีรษะไปด้านหลังเท่าที่ไม่ฝืน • 2.ดึงมือบีบสะบักเข้าหาหน้าผากค้างไว้ 1 วินาที ทำซ้ำ 12-15 ครั้ง'
+    warmup_guide_th: 'จับผ้ากว้างกว่าไหล่ ยกวาดขึ้นเหนือศีรษะไปด้านหลังช้าๆ 12 ครั้ง'
   },
   {
-    name: "World's Greatest Stretch & Hip Opener (ก้าวย่อบิดลำตัวเปิดสะโพก หลัง และข้อเท้า)",
+    name: "World's Greatest Stretch & Hip Opener (ก้าวย่อบิดลำตัวเปิดสะโพกและข้อเท้า)",
     muscle: 'Warmup',
-    sub_muscle: 'Hip Flexors, Glutes, Hamstrings & Thoracic Spine (ท่าวอร์มอันดับ 1 เปิดสะโพกและข้อเท้าครบทุกจุด)',
+    sub_muscle: 'เปิดสะโพก แฮมสตริง และข้อเท้า ก่อนเล่นขา/สควอท',
     type: 'Bodyweight',
     difficulty: 'Beginner',
     kcal_per_unit: 6,
     is_warmup: true,
     warmup_focus: 'lower',
-    warmup_guide_th: '1.ก้าวเท้าขวาไปด้านหน้ายาวๆ วางมือซ้ายแตะพื้น • 2.กดศอกขวาลงใกล้ตาตุ่มขวา แล้วบิดตัวชูแขนขวาขึ้นฟ้ามองตามมือ • 3.ทำสลับซ้าย-ขวาข้างละ 6-8 ครั้ง ช่วยให้นั่งสควอทได้ลึกไม่ติดสะโพก'
+    warmup_guide_th: 'ก้าวขายาวไปด้านหน้า ย่อสะโพกลงแล้วบิดตัวชูแขนขึ้นฟ้า ข้างละ 8 ครั้ง'
   },
   {
-    name: 'Dynamic Leg Swings & Knee Circles (แกว่งขาหน้า-หลังและหมุนข้อเข่าเพิ่มน้ำหล่อเลี้ยง)',
+    name: 'Dynamic Leg Swings & Knee Circles (แกว่งขาหน้า-หลังและหมุนข้อเข่า)',
     muscle: 'Warmup',
-    sub_muscle: 'Hamstrings, Hip Joint & Knee Capsule (วอร์มข้อสะโพก แฮมสตริง และลูกสะบ้าเข่า)',
+    sub_muscle: 'วอร์มข้อสะโพก แฮมสตริง และลูกสะบ้าเข่า',
     type: 'Bodyweight',
     difficulty: 'Beginner',
     kcal_per_unit: 5,
     is_warmup: true,
     warmup_focus: 'lower',
-    warmup_guide_th: '1.มือจับกำแพงพยุงตัว แกว่งขาไปหน้า-หลังและซ้าย-ขวาข้างละ 12 ครั้ง (เริ่มจากวงเล็กไปกว้าง) • 2.ยืนชิดเท้าวางมือบนเข่า หมุนข้อเข่าเบาๆ ซ้าย-ขวา 10 รอบก่อนเล่นขาหรือเดินป่า'
+    warmup_guide_th: 'จับกำแพงแกว่งขาหน้า-หลังข้างละ 12 ครั้ง + หมุนข้อเข่าเบาๆ 10 รอบ'
   },
   {
-    name: 'Bodyweight Good Morning & Pry Squat Warm-Up (พับสะโพกวอร์มหลังล่างและนั่งยองดันเข่าเปิดสะโพก)',
+    name: 'Bodyweight Good Morning & Deep Squat Pry (พับสะโพกและนั่งยองเปิดสะโพก)',
     muscle: 'Warmup',
-    sub_muscle: 'Lower Back, Glutes, Adductors & Ankle Mobility (ปลุกก้น แฮมสตริง และหลังล่างก่อนยกเวท)',
+    sub_muscle: 'ปลุกก้น แฮมสตริง และหลังล่างก่อนสควอทหนัก',
     type: 'Bodyweight',
     difficulty: 'Beginner',
     kcal_per_unit: 6,
     is_warmup: true,
     warmup_focus: 'lower',
-    warmup_guide_th: '1.มือแตะท้ายทอย พับสะโพกไปด้านหลังโดยรักษาหลังตรงให้ตึงขาหลังแล้วดันก้นกลับ • 2.ย่อตัวลงนั่งสควอทลึก ใช้ข้อศอกดันเข่าทั้งสองข้างออกเบาๆ โยกซ้าย-ขวา 10 ครั้ง'
+    warmup_guide_th: 'พับสะโพกหลังตรง 10 ครั้ง + นั่งยองใช้ศอกดันเข่าเปิดสะโพก 10 ครั้ง'
   },
   {
-    name: 'Ankle Dorsiflexion & Calf Pump Trail Warm-Up (โยกเข่าเปิดข้อเท้าและเขย่งน่องเตรียมเดินชัน/ขึ้นเขา)',
+    name: 'Ankle Dorsiflexion & Calf Pump (โยกเข่าเปิดข้อเท้าและเขย่งน่องเตรียมเดินชัน)',
     muscle: 'Warmup',
-    sub_muscle: 'Ankle Joint, Achilles Tendon, Calves & Tibialis (ป้องกันข้อเท้าพลิกและตะคริวน่องตอนเดินป่า)',
+    sub_muscle: 'ป้องกันข้อเท้าพลิกและตะคริวน่องก่อนเดินป่า/ลู่วิ่งชัน',
     type: 'Bodyweight',
     difficulty: 'Beginner',
     kcal_per_unit: 5,
     is_warmup: true,
     warmup_focus: 'trail',
-    warmup_guide_th: '1.วางเท้าห่างกำแพง 1 ฝ่ามือ ดันเข่าไปแตะกำแพงโดยส้นเท้าไม่ลอย ข้างละ 12 ครั้ง • 2.ยืนเขย่งปลายเท้าสลับกระดกปลายเท้าขึ้น 15 ครั้ง เพื่ออุ่นเอ็นร้อยหวายและหน้าแข้ง'
+    warmup_guide_th: 'โยกเข่าไปด้านหน้าโดยส้นเท้าติดพื้น 12 ครั้ง + เขย่งน่องสลับกระดกเท้า 15 ครั้ง'
   },
   {
-    name: 'Cat-Cow & Bird-Dog Spine Activation (โก่ง-แอ่นหลังบริหารกระดูกสันหลังและปลุกแกนกลาง)',
+    name: 'Cat-Cow & Bird-Dog Spine Warm-Up (โก่ง-แอ่นหลังบริหารแนวกระดูกสันหลัง)',
     muscle: 'Warmup',
-    sub_muscle: 'Core Stabilizers, Erector Spinae & Pelvis (เซฟหมอนรองกระดูกสันหลังและเปิดระบบประสาทแกนกลาง)',
+    sub_muscle: 'เซฟหมอนรองกระดูกสันหลังและปลุกแกนกลางลำตัว',
     type: 'Bodyweight',
     difficulty: 'Beginner',
     kcal_per_unit: 5,
     is_warmup: true,
     warmup_focus: 'full',
-    warmup_guide_th: '1.คุกเข่าวางมือสี่ขา หายใจเข้าแอ่นอกเงยหน้า หายใจออกโก่งสะบักเก็บคาง 10 รอบ • 2.เหยียดแขนขวาคู่ขาซ้ายให้ตรงขนานพื้น เกร็งท้องค้าง 2 วินาที สลับข้างรวม 12 ครั้ง'
+    warmup_guide_th: 'คุกเข่าวางมือ แอ่นอกสลับโก่งสะบัก 10 รอบ + เหยียดแขนขาตรงข้าม 10 ครั้ง'
   },
   {
-    name: 'Low-Impact Jumping Jacks & High Knees March (ก้าวตบและยกเข่าสูงกระตุ้นหัวใจให้อุณหภูมิร่างกายพร้อม)',
+    name: 'Low-Impact Jumping Jacks & High Knees (ก้าวตบและยกเข่าสูงกระตุ้นหัวใจ)',
     muscle: 'Warmup',
-    sub_muscle: 'Cardiovascular Warm-Up & Full-Body Blood Flow (เพิ่มอุณหภูมิกล้ามเนื้อและสูบฉีดเลือดทั่วร่าง)',
+    sub_muscle: 'เพิ่มอุณหภูมิกล้ามเนื้อและสูบฉีดเลือดทั่วร่าง',
     type: 'Bodyweight',
     difficulty: 'Beginner',
     kcal_per_unit: 7,
     is_warmup: true,
     warmup_focus: 'full',
-    warmup_guide_th: '1.ก้าวเท้าออกด้านข้างพร้อมชูแขนตบเหนือศีรษะ (หรือกระโดดตบเบาๆ) 30 วินาที • 2.เดินยกเข่าสูงสลับซ้าย-ขวาแกว่งแขน 30 วินาที ให้ร่างกายเริ่มอุ่นและมีเหงื่อซึมก่อนเริ่มยกเวท'
+    warmup_guide_th: 'ก้าวตบเหนือหัว 30 วินาที + เดินยกเข่าสูงแกว่งแขน 30 วินาที'
   },
 
   // ================= 1. CHEST (กล้ามเนื้ออก: 16 ท่า) =================
@@ -219,7 +219,7 @@ export const MASTER_EXERCISE_LIBRARY = [
 ]
 
 // ============================================================================
-// PURE HELPER 1: สร้างการ์ดท่าวอร์มร่างกายอัตโนมัติตามกลุ่มกล้ามเนื้อของโปรแกรมวันนั้น
+// PURE HELPER 1: จัดการ์ดท่าวอร์ม 1 ท่าหลักที่ตรงกับโปรแกรมวันนั้น (กระชับ ไม่รก)
 // ============================================================================
 export function getAutoWarmupExercisesForWorkout(workoutList = [], programTitle = '') {
   const safeList = Array.isArray(workoutList) ? workoutList : []
@@ -231,88 +231,57 @@ export function getAutoWarmupExercisesForWorkout(workoutList = [], programTitle 
     muscles.includes('legs') ||
     names.includes('squat') ||
     names.includes('lunge') ||
-    names.includes('step-up') ||
-    names.includes('hip thrust') ||
-    names.includes('calf')
-  const hasUpper =
-    muscles.includes('chest') ||
-    muscles.includes('back') ||
-    muscles.includes('shoulders') ||
-    muscles.includes('arms')
-  const isTrailOrCardio =
-    muscles.includes('cardio') ||
+    names.includes('hip thrust')
+  const isTrail =
     titleLower.includes('อุทยาน') ||
     titleLower.includes('เดินป่า') ||
-    titleLower.includes('ภูกระดึง') ||
     names.includes('incline') ||
     names.includes('rucksack')
 
-  let selectedWarmups = []
-
-  if (isTrailOrCardio && hasLower) {
-    // โปรแกรมเดินป่า / ซ้อมขึ้นเขา / ขา + ลู่วิ่งชัน
-    selectedWarmups = [
-      MASTER_EXERCISE_LIBRARY[4], // World's Greatest Stretch & Hip Opener
-      MASTER_EXERCISE_LIBRARY[7]  // Ankle Dorsiflexion & Calf Pump Trail Warm-Up
-    ]
-  } else if (hasLower && !hasUpper) {
-    // วันเล่นขา ก้น สะโพก ล้วน (Leg / Glute Day)
-    selectedWarmups = [
-      MASTER_EXERCISE_LIBRARY[4], // World's Greatest Stretch & Hip Opener
-      MASTER_EXERCISE_LIBRARY[6]  // Bodyweight Good Morning & Pry Squat Warm-Up
-    ]
-  } else if (hasUpper && !hasLower) {
-    // วันเล่นส่วนบน อก หลัง ไหล่ แขน (Push / Pull / Upper Body)
-    selectedWarmups = [
-      MASTER_EXERCISE_LIBRARY[0], // Arm Circles & Scapular Swings
-      MASTER_EXERCISE_LIBRARY[1]  // Scapular Push-Up & Wrist Warm-Up
-    ]
-  } else {
-    // วันเล่นทั่วร่าง (Full Body / Mobility / Quick Mode)
-    selectedWarmups = [
-      MASTER_EXERCISE_LIBRARY[0], // Arm Circles & Scapular Swings
-      MASTER_EXERCISE_LIBRARY[4]  // World's Greatest Stretch & Hip Opener
-    ]
+  let pickedWarmup = MASTER_EXERCISE_LIBRARY[0] // Arm Circles & Scapular Swings (Upper/Full)
+  if (isTrail) {
+    pickedWarmup = MASTER_EXERCISE_LIBRARY[7] // Ankle Dorsiflexion & Calf Pump
+  } else if (hasLower) {
+    pickedWarmup = MASTER_EXERCISE_LIBRARY[4] // World's Greatest Stretch & Hip Opener
   }
 
-  return selectedWarmups.map((w, idx) => ({
-    exercise_name: `🔥 [วอร์มร่างกายท่าที่ ${idx + 1}] ${w.name}`,
-    name: `🔥 [วอร์มร่างกายท่าที่ ${idx + 1}] ${w.name}`,
-    muscle: 'Warmup',
-    sub_muscle: w.sub_muscle,
-    type: 'Bodyweight',
-    sets: 2,
-    reps: '12-15 ครั้ง (หรือ 45 วินาที)',
-    weight: 0,
-    is_warmup: true,
-    program_title: programTitle || undefined,
-    description_th: `🎓 วิธีวอร์มสำหรับมือใหม่: ${w.warmup_guide_th} (ทำ 2 เซ็ตต่อเนื่อง พัก 30 วินาที เพื่อเพิ่มน้ำหล่อเลี้ยงข้อต่อและป้องกันการบาดเจ็บก่อนเริ่มยกเวทจริง)`
-  }))
+  return [
+    {
+      exercise_name: `🔥 [วอร์มร่างกาย] ${pickedWarmup.name}`,
+      name: `🔥 [วอร์มร่างกาย] ${pickedWarmup.name}`,
+      muscle: 'Warmup',
+      sub_muscle: pickedWarmup.sub_muscle,
+      type: 'Bodyweight',
+      sets: 2,
+      reps: 15,
+      weight: 0,
+      is_warmup: true,
+      program_title: programTitle || undefined,
+      description_th: pickedWarmup.warmup_guide_th
+    }
+  ]
 }
 
 // ============================================================================
-// PURE HELPER 2: แทรกท่าวอร์มเข้าต้นโปรแกรมอัตโนมัติ (โดยไม่สร้างซ้ำถ้ามีอยู่แล้ว)
+// PURE HELPER 2: แทรกท่าวอร์ม 1 ท่าเข้าต้นโปรแกรมอัตโนมัติ
 // ============================================================================
 export function injectWarmupIntoProgram(exercises = [], programTitle = '') {
   if (!Array.isArray(exercises) || exercises.length === 0) return []
 
-  // ถ้าเป็นวันพัก (Rest Day) ไม่ต้องแทรกท่าวอร์มซ้ำ
   const isRestDay = exercises.some(
     ex =>
       ex?.muscle === 'Recovery' ||
-      (ex?.exercise_name || ex?.name || '').includes('Active Recovery') ||
+      ex?.muscle === 'Rest' ||
       (ex?.exercise_name || ex?.name || '').includes('วันพัก')
   )
   if (isRestDay) return exercises
 
-  // ตรวจว่ามีท่าวอร์มอยู่แล้วหรือยัง
   const alreadyHasWarmup = exercises.some(
     ex =>
       ex?.is_warmup === true ||
       ex?.muscle === 'Warmup' ||
-      (ex?.exercise_name || ex?.name || '').includes('[วอร์มร่างกาย') ||
-      (ex?.exercise_name || ex?.name || '').toLowerCase().includes('warm-up') ||
-      (ex?.exercise_name || ex?.name || '').toLowerCase().includes('warmup')
+      (ex?.exercise_name || ex?.name || '').includes('[วอร์ม') ||
+      (ex?.exercise_name || ex?.name || '').toLowerCase().includes('warm-up')
   )
   if (alreadyHasWarmup) return exercises
 
@@ -325,116 +294,34 @@ export function injectWarmupIntoProgram(exercises = [], programTitle = '') {
   return [...warmupCards, ...exercises]
 }
 
-// ============================================================================
-// PURE HELPER 3: คู่มือการวอร์มรายท่า & เซ็ตวอร์มก่อนเข้าเซ็ตจริง (สำหรับแสดงในทุกๆ ท่าฝึก)
-// ============================================================================
+// เผื่อไฟล์อื่นเรียกใช้งาน
 export function getSetBySetWarmupGuide(exercise = {}) {
-  const name = exercise?.exercise_name || exercise?.name || ''
-  const muscle = exercise?.muscle || 'Chest'
-  const workingWeight = Number(exercise?.weight) || 0
-  const isWarmupEx =
-    exercise?.is_warmup === true ||
-    muscle === 'Warmup' ||
-    name.includes('[วอร์มร่างกาย')
-
-  if (isWarmupEx) {
-    // ค้นหาคำแนะนำเฉพาะท่าจากคลัง
-    const matched = MASTER_EXERCISE_LIBRARY.find(
-      m => m.muscle === 'Warmup' && name.includes(m.name.split('(')[0].trim())
-    )
-    return {
-      isWarmupCard: true,
-      badge: '🔥 STEP 0 • DYNAMIC WARM-UP (ท่าวอร์มร่างกายบังคับก่อนฝึก)',
-      whyImportant: 'ช่วยให้หัวใจสูบฉีดเลือดไปเลี้ยงกล้ามเนื้อ เพิ่มน้ำไขข้อ (Synovial Fluid) ลดโอกาสเอ็นอักเสบหรือกล้ามเนื้อฉีกขาดได้ถึง 70%',
-      steps: [
-        {
-          id: 'w1',
-          label: 'เซ็ตวอร์มที่ 1 (ปลุกข้อต่อและเส้นเอ็น)',
-          detail: matched?.warmup_guide_th || 'เคลื่อนไหวช้าๆ เต็มระยะข้อต่อ (Full Range of Motion) 12-15 ครั้ง ห้ามกระชาก หายใจเข้า-ออกลึกๆ'
-        },
-        {
-          id: 'w2',
-          label: 'เซ็ตวอร์มที่ 2 (เพิ่มอุณหภูมิกล้ามเนื้อให้พร้อมรับน้ำหนัก)',
-          detail: 'ทำซ้ำอีก 12-15 ครั้งด้วยจังหวะที่กระฉับกระเฉงขึ้น จนรู้สึกอุ่นบริเวณข้อต่อและกล้ามเนื้อเป้าหมาย แล้วไปเริ่มท่าหลักได้เลย!'
-        }
-      ]
-    }
-  }
-
-  if (muscle === 'Cardio') {
-    return {
-      isWarmupCard: false,
-      badge: '🏃 คู่มือวอร์มก่อนคาร์ดิโอ / เดินชันขึ้นเขา',
-      whyImportant: 'การเร่งความเร็วหรือความชันทันทีทำให้หน้ามืดและปวดหน้าแข้ง มือใหม่ต้องไต่ระดับความเร็ว 3 นาทีแรกเสมอ',
-      steps: [
-        {
-          id: 'c1',
-          label: 'นาทีที่ 1-2: เดินราบความเร็วต่ำ + หมุนข้อเท้า',
-          detail: 'เริ่มเดินที่ความชัน 0-2% ความเร็วสบายๆ (3.0 - 4.0 km/h) เพื่อให้ข้อเท้า น่อง และหัวใจปรับตัว'
-        },
-        {
-          id: 'c2',
-          label: 'นาทีที่ 3: ไต่ระดับเข้าสู่ความชันเป้าหมาย',
-          detail: 'ค่อยๆ ปรับความชัน (Incline) ขึ้นทีละ 2-3% จนถึงระดับเป้าหมาย ก้าวเต็มฝ่าเท้า ห้ามเกาะราวลู่วิ่งเอนตัวไปข้างหลัง'
-        }
-      ]
-    }
-  }
-
-  // ท่าเวทเทรนนิ่ง / บอดี้เวท (Chest, Back, Legs, Shoulders, Arms, Core)
-  const w40 = workingWeight > 2 ? Math.max(1, Math.round(workingWeight * 0.45)) : 0
-  const w70 = workingWeight > 4 ? Math.max(2, Math.round(workingWeight * 0.7)) : 0
-
-  const jointPrepByMuscle = {
-    Chest: 'หมุนหัวไหล่ 10 รอบ + กางแขนดึงสะบักไปด้านหลัง 10 ครั้ง เพื่อเปิดหน้าอกและล็อกสะบัก',
-    Back: 'เหวี่ยงแขนเปิดสะบัก + ห้อยตัวหรือดึงสะบักเปล่าๆ (Scapular Pull) 10 ครั้ง เพื่อปลุกกล้ามเนื้อปีก',
-    Legs: 'ย่อสควอทตัวเปล่าช้าๆ 10 ครั้ง + โยกเข่าเปิดข้อเท้าซ้าย-ขวา เพื่อให้ข้อเข่าและสะโพกมีน้ำหล่อเลี้ยง',
-    Shoulders: 'หมุนหัวไหล่หน้า-หลัง 15 รอบ + ยกแขนเปล่าขึ้น-ลงในองศาที่จะเล่น 12 ครั้ง เพื่อเช็กว่าไหล่ไม่ติดขัด',
-    Arms: 'หมุนข้อมือและพับ-เหยียดข้อศอกเปล่าๆ 15 ครั้ง เพื่อให้เอ็นข้อศอกอุ่นก่อนรับแรงดึง',
-    Core: 'หายใจเข้าลึกแล้วเป่าลมออกเกร็งหน้าท้อง (Abdominal Bracing) ค้าง 5 วินาที × 5 รอบ เพื่อปลุกแกนกลาง'
-  }
-
+  const w = Number(exercise?.weight) || 0
+  const lightW = w >= 4 ? Math.max(1, Math.round(w * 0.45)) : 0
   return {
-    isWarmupCard: false,
-    badge: '🛡️ คู่มือเซ็ตวอร์มสำหรับมือใหม่ (ทำก่อนเริ่มเซ็ตจริง #1)',
-    whyImportant: 'ห้ามยกน้ำหนักจริงทันทีเด็ดขาด! การทำเซ็ตวอร์ม (Warm-up Sets) 1-2 เซ็ตด้วยน้ำหนักเบา ช่วยให้สมองจับโฟกัสกล้ามเนื้อถูกมัดและยกได้หนักขึ้นโดยไม่เจ็บข้อต่อ',
+    isWarmupCard: Boolean(exercise?.is_warmup || exercise?.muscle === 'Warmup'),
+    badge: '🔥 วอร์มก่อนยก',
+    whyImportant: 'ป้องกันข้อต่อบาดเจ็บและโฟกัสกล้ามเนื้อได้ตรงจุด',
     steps: [
       {
         id: 's1',
-        label: 'ขั้นที่ 1: ขยับข้อต่อจำลองท่า (Joint & Movement Prep 30 วินาที)',
-        detail: jointPrepByMuscle[muscle] || jointPrepByMuscle.Chest
-      },
-      {
-        id: 's2',
-        label:
-          workingWeight > 0
-            ? `ขั้นที่ 2: เซ็ตวอร์มที่ 1 — ใช้น้ำหนักเบา ~${w40} kg (หรือดัมเบลคู่เล็กสุด) × 12-15 ครั้ง`
-            : 'ขั้นที่ 2: เซ็ตวอร์มที่ 1 — ทำท่านี้แบบครึ่งระยะช้าๆ 10 ครั้ง เพื่อเช็กองศาและจับโฟกัส',
-        detail: 'เน้นเคลื่อนไหวช้าๆ สัมผัสว่ากล้ามเนื้อเป้าหมายหดและยืดตัว ไม่ต้องรีบและยังไม่นับเป็นเซ็ตจริง'
-      },
-      ...(workingWeight >= 8
-        ? [
-            {
-              id: 's3',
-              label: `ขั้นที่ 3: เซ็ตวอร์มที่ 2 (ปรับตัวรับน้ำหนัก) — ใช้น้ำหนัก ~${w70} kg × 6-8 ครั้ง`,
-              detail: 'ยกแค่ 6-8 ครั้งเพื่อกระตุ้นระบบประสาทให้คุ้นชินกับความหนัก พัก 60 วินาที แล้วกดเริ่มเซ็ตจริง #1 ได้เลย!'
-            }
-          ]
-        : [])
+        label: lightW > 0 ? `ยกเบา ~${lightW} kg × 12 ครั้ง 1 เซ็ต` : 'ขยับข้อต่อเบาๆ 12 ครั้ง 1 เซ็ต',
+        detail: ''
+      }
     ]
   }
 }
 
 const MUSCLE_FILTER_DEFS = [
   { id: 'All', label: 'ทั้งหมด' },
-  { id: 'Warmup', label: '🔥 ท่าวอร์มร่างกาย (Warm-up)' },
-  { id: 'Chest', label: 'Chest (อก)' },
-  { id: 'Back', label: 'Back (หลัง/ปีก)' },
-  { id: 'Legs', label: 'Legs (ขา/ก้น/น่อง)' },
-  { id: 'Shoulders', label: 'Shoulders (ไหล่/บ่า)' },
-  { id: 'Arms', label: 'Arms (หน้าแขน/หลังแขน)' },
-  { id: 'Core', label: 'Core (หน้าท้อง/เอวเอส)' },
-  { id: 'Cardio', label: 'Cardio (ลู่วิ่งเดินชัน)' }
+  { id: 'Warmup', label: '🔥 ท่าวอร์ม (Warm-up)' },
+  { id: 'Chest', label: 'อก (Chest)' },
+  { id: 'Back', label: 'หลัง (Back)' },
+  { id: 'Legs', label: 'ขา/ก้น (Legs)' },
+  { id: 'Shoulders', label: 'ไหล่ (Shoulders)' },
+  { id: 'Arms', label: 'แขน (Arms)' },
+  { id: 'Core', label: 'หน้าท้อง (Core)' },
+  { id: 'Cardio', label: 'ลู่วิ่ง (Cardio)' }
 ]
 
 const EQUIPMENT_FILTERS = [
@@ -443,8 +330,8 @@ const EQUIPMENT_FILTERS = [
   { id: 'Barbell', label: 'บาร์เบล (Barbell)' },
   { id: 'Machine', label: 'แมชชีน (Machine)' },
   { id: 'Cable', label: 'เคเบิล (Cable)' },
-  { id: 'Calisthenics', label: 'คาลิสเธนิกส์ (บาร์โหน)' },
-  { id: 'Bodyweight', label: 'บอดี้เวท / วอร์มมือเปล่า (Bodyweight)' },
+  { id: 'Calisthenics', label: 'บาร์โหน (Calisthenics)' },
+  { id: 'Bodyweight', label: 'มือเปล่า / วอร์ม (Bodyweight)' },
   { id: 'Cardio', label: 'ลู่วิ่ง (Treadmill)' }
 ]
 
@@ -454,7 +341,6 @@ export default function ExerciseModal({ isOpen, onClose, onAddExercise }) {
   const [selectedEquip, setSelectedEquip] = useState('All')
   const [searchQuery, setSearchQuery] = useState('')
 
-  // ฟอร์มสำหรับเพิ่มท่าใหม่เข้าฐานข้อมูลด้วยตัวเอง
   const [showCustomForm, setShowCustomForm] = useState(false)
   const [customName, setCustomName] = useState('')
   const [customMuscle, setCustomMuscle] = useState('Warmup')
@@ -499,8 +385,7 @@ export default function ExerciseModal({ isOpen, onClose, onAddExercise }) {
     const kw = (searchQuery || '').trim().toLowerCase()
     const nameStr = (ex.name || '').toLowerCase()
     const subStr = (ex.sub_muscle || '').toLowerCase()
-    const guideStr = (ex.warmup_guide_th || '').toLowerCase()
-    const matchSearch = !kw || nameStr.includes(kw) || subStr.includes(kw) || guideStr.includes(kw)
+    const matchSearch = !kw || nameStr.includes(kw) || subStr.includes(kw)
     return matchMuscle && matchEquip && matchSearch
   })
 
@@ -512,7 +397,7 @@ export default function ExerciseModal({ isOpen, onClose, onAddExercise }) {
     const newExObj = {
       name: customName.trim(),
       muscle: customMuscle,
-      sub_muscle: customSubMuscle.trim() || `${customMuscle} Custom Focus`,
+      sub_muscle: customSubMuscle.trim() || `${customMuscle} Focus`,
       type: customType,
       difficulty: 'Beginner',
       kcal_per_unit: customMuscle === 'Warmup' ? 5 : 9,
@@ -522,7 +407,7 @@ export default function ExerciseModal({ isOpen, onClose, onAddExercise }) {
     try {
       await supabase.from('exercises').upsert([newExObj], { onConflict: 'name' })
     } catch {
-      // กรณีออฟไลน์ยังสามารถเพิ่มลง State หน้าจอได้ทันที
+      // ignore offline
     }
 
     setExercises(prev => [newExObj, ...prev])
@@ -533,108 +418,86 @@ export default function ExerciseModal({ isOpen, onClose, onAddExercise }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-xs">
-      <div className="flex flex-col w-full max-w-5xl bg-white border border-slate-200 max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-xs">
+      <div className="flex flex-col w-full max-w-5xl bg-white border border-slate-200 max-h-[92vh] rounded-3xl shadow-2xl overflow-hidden">
         
         {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 text-white bg-slate-900">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 text-[10px] font-black text-slate-950 bg-emerald-400 rounded uppercase">
-                MASTER EXERCISE & WARM-UP ATLAS
-              </span>
-              <h2 className="text-lg font-extrabold">คลังท่าออกกำลังกาย & ท่าวอร์มร่างกาย ({exercises.length} ท่า)</h2>
-            </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              มีหมวด 🔥 ท่าวอร์มร่างกายสำหรับมือใหม่ พร้อมคำอธิบายวิธีวอร์มทีละสเต็ป และคลิปสาธิตทุกท่า
-            </p>
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 text-white bg-slate-900">
+          <h2 className="text-base sm:text-xl font-black">
+            คลังท่าออกกำลังกาย & ท่าวอร์ม ({exercises.length} ท่า)
+          </h2>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setShowCustomForm(prev => !prev)}
-              className="px-3.5 py-1.5 text-xs font-extrabold text-emerald-950 bg-emerald-400 rounded-xl hover:bg-emerald-300 transition"
+              className="px-3.5 py-2 text-xs sm:text-sm font-extrabold text-slate-950 bg-emerald-400 rounded-xl hover:bg-emerald-300"
             >
-              {showCustomForm ? '✕ ปิดฟอร์มเพิ่มท่า' : '+ สร้างท่าฝึก/ท่าวอร์มใหม่'}
+              {showCustomForm ? '✕ ปิด' : '+ สร้างท่าใหม่'}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white text-lg font-bold"
+              className="p-2 text-slate-300 hover:text-white text-xl font-bold"
             >
               ✕
             </button>
           </div>
         </div>
 
-        {/* ฟอร์มสร้างท่าออกกำลังกายใหม่เข้าคลัง */}
+        {/* ฟอร์มสร้างท่าออกกำลังกายใหม่ */}
         {showCustomForm && (
-          <form onSubmit={handleCreateCustomExercise} className="p-4 bg-emerald-50 border-b border-emerald-200 space-y-3">
-            <div className="text-xs font-extrabold text-emerald-900">
-              ✨ เพิ่มท่าออกกำลังกายหรือท่าวอร์มร่างกายใหม่เข้าสู่คลังส่วนตัวของคุณ
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-              <input
-                type="text"
-                required
-                value={customName}
-                onChange={(e) => setCustomName(e.target.value)}
-                placeholder="ชื่อท่า (เช่น หมุนสะโพกวอร์มก่อนสควอท)"
-                className="px-3 py-2 text-xs font-bold bg-white border border-emerald-300 rounded-xl outline-none"
-              />
-              <select
-                value={customMuscle}
-                onChange={(e) => setCustomMuscle(e.target.value)}
-                className="px-3 py-2 text-xs font-bold bg-white border border-emerald-300 rounded-xl outline-none"
-              >
-                {MUSCLE_FILTER_DEFS.filter(m => m.id !== 'All').map(m => (
-                  <option key={m.id} value={m.id}>{m.label}</option>
-                ))}
-              </select>
-              <select
-                value={customType}
-                onChange={(e) => setCustomType(e.target.value)}
-                className="px-3 py-2 text-xs font-bold bg-white border border-emerald-300 rounded-xl outline-none"
-              >
-                {EQUIPMENT_FILTERS.filter(eq => eq.id !== 'All').map(eq => (
-                  <option key={eq.id} value={eq.id}>{eq.label}</option>
-                ))}
-              </select>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={customSubMuscle}
-                  onChange={(e) => setCustomSubMuscle(e.target.value)}
-                  placeholder="จุดโฟกัส / วิธีวอร์ม..."
-                  className="flex-1 px-3 py-2 text-xs font-medium bg-white border border-emerald-300 rounded-xl outline-none"
-                />
-                <button
-                  type="submit"
-                  disabled={isSavingCustom}
-                  className="px-4 py-2 text-xs font-extrabold text-white bg-emerald-700 rounded-xl hover:bg-emerald-800 shrink-0"
-                >
-                  บันทึก
-                </button>
-              </div>
-            </div>
+          <form onSubmit={handleCreateCustomExercise} className="p-4 bg-emerald-50 border-b border-emerald-200 grid grid-cols-1 gap-2.5 sm:grid-cols-4">
+            <input
+              type="text"
+              required
+              value={customName}
+              onChange={(e) => setCustomName(e.target.value)}
+              placeholder="ชื่อท่าฝึกใหม่..."
+              className="px-3.5 py-2.5 text-sm font-bold bg-white border border-emerald-300 rounded-xl outline-none"
+            />
+            <select
+              value={customMuscle}
+              onChange={(e) => setCustomMuscle(e.target.value)}
+              className="px-3.5 py-2.5 text-sm font-bold bg-white border border-emerald-300 rounded-xl outline-none"
+            >
+              {MUSCLE_FILTER_DEFS.filter(m => m.id !== 'All').map(m => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </select>
+            <select
+              value={customType}
+              onChange={(e) => setCustomType(e.target.value)}
+              className="px-3.5 py-2.5 text-sm font-bold bg-white border border-emerald-300 rounded-xl outline-none"
+            >
+              {EQUIPMENT_FILTERS.filter(eq => eq.id !== 'All').map(eq => (
+                <option key={eq.id} value={eq.id}>{eq.label}</option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              disabled={isSavingCustom}
+              className="px-4 py-2.5 text-sm font-extrabold text-white bg-emerald-700 rounded-xl hover:bg-emerald-800"
+            >
+              บันทึกท่าใหม่
+            </button>
           </form>
         )}
 
-        {/* แถบค้นหาและตัวกรองกล้ามเนื้อ/อุปกรณ์ */}
+        {/* แถบค้นหาและปุ่มกรองกล้ามเนื้อ (ตัวหนังสือใหญ่ กดง่าย) */}
         <div className="p-4 bg-slate-50 border-b border-slate-200 space-y-3">
           <div className="flex flex-wrap gap-2">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ค้นหาชื่อท่า เช่น วอร์มไหล่, เปิดสะโพก, ข้อเท้า, อกบน, ปีก, ก้น, Squat..."
-              className="flex-1 min-w-[240px] px-4 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              placeholder="ค้นหาชื่อท่า เช่น วอร์มไหล่, เปิดสะโพก, อกบน, ปีก, ก้น, Squat..."
+              className="flex-1 min-w-[220px] px-4 py-2.5 text-sm font-bold text-slate-900 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600"
             />
             <select
               value={selectedEquip}
               onChange={(e) => setSelectedEquip(e.target.value)}
-              className="px-3.5 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-xl outline-none"
+              className="px-3.5 py-2.5 text-sm font-bold text-slate-900 bg-white border border-slate-300 rounded-xl outline-none"
             >
               {EQUIPMENT_FILTERS.map(eq => (
                 <option key={eq.id} value={eq.id}>{eq.label}</option>
@@ -642,7 +505,7 @@ export default function ExerciseModal({ isOpen, onClose, onAddExercise }) {
             </select>
           </div>
 
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {MUSCLE_FILTER_DEFS.map(m => {
               const count =
                 m.id === 'All'
@@ -655,119 +518,99 @@ export default function ExerciseModal({ isOpen, onClose, onAddExercise }) {
                   key={m.id}
                   type="button"
                   onClick={() => setSelectedMuscle(m.id)}
-                  className={`px-3 py-1.5 text-xs font-extrabold rounded-xl border transition ${
+                  className={`px-3.5 py-2 text-xs sm:text-sm font-extrabold rounded-xl border transition ${
                     selectedMuscle === m.id
                       ? isWarmupTab
-                        ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-xs'
-                        : 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                        ? 'bg-amber-500 text-slate-950 border-amber-600'
+                        : 'bg-slate-900 text-white border-slate-900'
                       : isWarmupTab
-                        ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
-                        : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'
+                        ? 'bg-amber-50 text-amber-950 border-amber-300'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
                   }`}
                 >
-                  {m.label} ({count} ท่า)
+                  {m.label} ({count})
                 </button>
               )
             })}
           </div>
         </div>
 
-        {/* แบนเนอร์แนะนำมือใหม่เมื่อดูหมวดท่าวอร์ม */}
-        {selectedMuscle === 'Warmup' && (
-          <div className="px-5 py-3 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-emerald-500/10 border-b border-amber-200 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-xs font-bold text-amber-950">
-              💡 <span className="font-black">ทำไมมือใหม่ต้องวอร์มแบบเคลื่อนไหว (Dynamic Warm-up)?</span> — ห้ามยืดค้างนิ่งๆ นานเกินไปก่อนยกเวท! ให้ขยับข้อต่อตามท่าด้านล่าง 1-2 ท่า (ท่าละ 12-15 ครั้ง) เพื่อเพิ่มน้ำหล่อเลี้ยงข้อต่อและเปิดระบบประสาทก่อนยกจริง
-            </div>
-          </div>
-        )}
-
-        {/* รายการท่าออกกำลังกาย */}
-        <div className="flex-1 p-5 overflow-y-auto bg-slate-100/70">
+        {/* รายการท่าออกกำลังกาย (ตัวหนังสือใหญ่ ไม่รก) */}
+        <div className="flex-1 p-4 sm:p-5 overflow-y-auto bg-slate-100/70">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {filteredExercises.map((ex, idx) => {
               const ytUrl = getExerciseYouTubeUrl(ex.name)
               const isWarmup = ex.muscle === 'Warmup' || ex.is_warmup
+              const parts = ex.name.split('(')
+              const engName = parts[0].trim()
+              const thName = parts[1] ? parts[1].replace(')', '').trim() : ex.name
+
               return (
                 <div
                   key={`${ex.name}-${idx}`}
-                  className={`flex flex-col justify-between gap-3 p-3.5 bg-white border rounded-2xl shadow-2xs transition ${
+                  className={`flex items-center justify-between gap-3 p-4 bg-white border-2 rounded-2xl transition ${
                     isWarmup
-                      ? 'border-amber-300 bg-gradient-to-br from-amber-50/60 to-white hover:border-amber-500'
+                      ? 'border-amber-300 hover:border-amber-500'
                       : 'border-slate-200 hover:border-emerald-500'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <ExerciseIllustration
-                        name={ex.name}
-                        muscle={isWarmup ? (ex.warmup_focus === 'lower' || ex.warmup_focus === 'trail' ? 'Legs' : 'Shoulders') : ex.muscle}
-                        type={ex.type}
-                        size="md"
-                      />
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
-                          {isWarmup && (
-                            <span className="px-2 py-0.5 text-[10px] font-black text-amber-950 bg-amber-300 rounded-md">
-                              🔥 ท่าวอร์มก่อนฝึก
-                            </span>
-                          )}
-                          <h3 className="text-xs font-black text-slate-900 leading-snug">
-                            {ex.name}
-                          </h3>
-                        </div>
-                        <p className="text-[11px] font-semibold text-emerald-700 mt-0.5">
-                          {ex.sub_muscle}
-                        </p>
-                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                          <span className="px-2 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-700 rounded-md">
-                            {ex.type}
-                          </span>
-                          <a
-                            href={ytUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-2 py-0.5 text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-md hover:bg-rose-100"
-                          >
-                            ▶ ดูคลิปสอนท่านี้
-                          </a>
-                        </div>
+                  <div className="flex items-start gap-3 min-w-0">
+                    <ExerciseIllustration
+                      name={ex.name}
+                      muscle={isWarmup ? 'Warmup' : ex.muscle}
+                      type={ex.type}
+                      size="lg"
+                    />
+                    <div className="min-w-0">
+                      <h3 className="text-sm sm:text-base font-black text-slate-900 leading-snug">
+                        {thName}
+                      </h3>
+                      <p className="text-xs sm:text-sm font-bold text-emerald-700 truncate mt-0.5">
+                        {engName}
+                      </p>
+                      <p className="text-xs text-slate-600 mt-1 line-clamp-1">
+                        {isWarmup ? ex.warmup_guide_th : ex.sub_muscle}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                        <span className="px-2.5 py-0.5 text-xs font-bold bg-slate-100 text-slate-800 rounded-lg">
+                          {ex.type}
+                        </span>
+                        <a
+                          href={ytUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-0.5 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg hover:bg-rose-100"
+                        >
+                          ▶ คลิปสอน
+                        </a>
                       </div>
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onAddExercise(
-                          isWarmup
-                            ? {
-                                ...ex,
-                                sets: 2,
-                                reps: '12-15 ครั้ง',
-                                weight: 0,
-                                is_warmup: true,
-                                description_th: `🎓 วิธีวอร์มสำหรับมือใหม่: ${ex.warmup_guide_th || ex.sub_muscle}`
-                              }
-                            : ex
-                        )
-                        onClose()
-                      }}
-                      className={`px-3.5 py-2 text-xs font-extrabold text-white rounded-xl shrink-0 shadow-2xs ${
-                        isWarmup
-                          ? 'bg-amber-600 hover:bg-amber-700'
-                          : 'bg-emerald-600 hover:bg-emerald-700'
-                      }`}
-                    >
-                      {isWarmup ? '+ เพิ่มท่าวอร์มนี้' : '+ เลือกท่านี้'}
-                    </button>
                   </div>
 
-                  {/* แสดงคำอธิบายวิธีวอร์มทีละขั้นสำหรับมือใหม่ทันทีในหน้าเลือกท่า */}
-                  {isWarmup && ex.warmup_guide_th && (
-                    <div className="p-2.5 text-[11px] font-medium text-amber-950 bg-amber-100/70 border border-amber-200 rounded-xl leading-relaxed">
-                      <span className="font-extrabold text-amber-900">🎓 วิธีทำทีละขั้น (มือใหม่): </span>
-                      {ex.warmup_guide_th}
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onAddExercise(
+                        isWarmup
+                          ? {
+                              ...ex,
+                              sets: 2,
+                              reps: 15,
+                              weight: 0,
+                              is_warmup: true
+                            }
+                          : ex
+                      )
+                      onClose()
+                    }}
+                    className={`px-4 py-2.5 text-xs sm:text-sm font-black text-white rounded-xl shrink-0 shadow-xs ${
+                      isWarmup
+                        ? 'bg-amber-600 hover:bg-amber-700'
+                        : 'bg-emerald-600 hover:bg-emerald-700'
+                    }`}
+                  >
+                    + เลือก
+                  </button>
                 </div>
               )
             })}
