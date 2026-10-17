@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import ExerciseModal, { MASTER_EXERCISE_LIBRARY } from '../components/ExerciseModal'
@@ -9,6 +9,7 @@ import MealPlannerWidget from '../components/MealPlannerWidget'
 import TrailReadinessModal from '../components/TrailReadinessModal'
 import ForestryAcademicHub from '../components/ForestryAcademicHub'
 import LiveGymToolbar, { getSmartSwapCandidate } from '../components/LiveGymToolbar'
+import FloatingRestTimer from '../components/FloatingRestTimer'
 import {
   formatLocalISO,
   getEquipmentLoadMeta,
@@ -37,6 +38,18 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('cards')
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false)
 
+  // ย่อแถบด้านบนอัตโนมัติเมื่อเลื่อนจอลง (ใช้ 2 ระดับกันแถบกระพริบไปมา)
+  const [isHeaderCompact, setIsHeaderCompact] = useState(false)
+  useEffect(() => {
+    const handleScroll = () => {
+      const y = window.scrollY
+      setIsHeaderCompact(prev => (prev ? y > 20 : y > 80))
+    }
+    handleScroll()
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [scheduleOverrides, setScheduleOverrides] = useState({})
@@ -53,6 +66,110 @@ export default function Dashboard() {
   const [currentWorkoutId, setCurrentWorkoutId] = useState(null)
   const [todayWorkouts, setTodayWorkouts] = useState([])
   const [restTimerRequest, setRestTimerRequest] = useState(null)
+
+  // ระบบนาฬิกาจับเวลาพักเซ็ต (Rest Timer) ทำงานระดับ Global รองรับทุกหน้าจอ
+  const [restTimer, setRestTimer] = useState({
+    active: false,
+    remainingSec: 0,
+    totalSec: 90,
+    label: '',
+    justFinished: false
+  })
+  const restEndTimeRef = useRef(null)
+
+  const playRestCompletionBeep = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext
+      if (!AudioCtx) return
+      const ctx = new AudioCtx()
+      const playTone = (freq, startTime, duration) => {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.type = 'sine'
+        osc.frequency.setValueAtTime(freq, startTime)
+        gain.gain.setValueAtTime(0.25, startTime)
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration)
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.start(startTime)
+        osc.stop(startTime + duration)
+      }
+      const now = ctx.currentTime
+      playTone(880, now, 0.18)
+      playTone(1174.66, now + 0.22, 0.35)
+    } catch {}
+  }
+
+  const handleStartRestTimer = (seconds, label = 'พักฟื้นระหว่างเซ็ต') => {
+    const duration = Math.max(5, parseInt(seconds) || 90)
+    restEndTimeRef.current = Date.now() + duration * 1000
+    setRestTimer({
+      active: true,
+      remainingSec: duration,
+      totalSec: duration,
+      label,
+      justFinished: false
+    })
+  }
+
+  const handleAdjustRestTimer = (deltaSec) => {
+    if (!restTimer.active || !restEndTimeRef.current) {
+      handleStartRestTimer(Math.max(15, deltaSec), 'พักฟื้นระหว่างเซ็ต')
+      return
+    }
+    restEndTimeRef.current += deltaSec * 1000
+    const updatedRemaining = Math.max(0, Math.ceil((restEndTimeRef.current - Date.now()) / 1000))
+    setRestTimer(prev => ({
+      ...prev,
+      remainingSec: updatedRemaining,
+      totalSec: Math.max(updatedRemaining, prev.totalSec + deltaSec)
+    }))
+  }
+
+  const handleStopRestTimer = () => {
+    restEndTimeRef.current = null
+    setRestTimer({
+      active: false,
+      remainingSec: 0,
+      totalSec: 90,
+      label: '',
+      justFinished: false
+    })
+    setRestTimerRequest(null)
+  }
+
+  useEffect(() => {
+    if (!restTimer.active) return
+    const interval = setInterval(() => {
+      if (!restEndTimeRef.current) return
+      const diffSec = Math.ceil((restEndTimeRef.current - Date.now()) / 1000)
+      if (diffSec <= 0) {
+        restEndTimeRef.current = null
+        setRestTimer(prev => ({
+          ...prev,
+          active: false,
+          remainingSec: 0,
+          justFinished: true
+        }))
+        playRestCompletionBeep()
+      } else {
+        setRestTimer(prev => ({
+          ...prev,
+          remainingSec: diffSec
+        }))
+      }
+    }, 250)
+    return () => clearInterval(interval)
+  }, [restTimer.active])
+
+  useEffect(() => {
+    if (restTimer.justFinished) {
+      const t = setTimeout(() => {
+        setRestTimer(prev => ({ ...prev, justFinished: false }))
+      }, 5000)
+      return () => clearTimeout(t)
+    }
+  }, [restTimer.justFinished])
 
   const [allWorkoutsMap, setAllWorkoutsMap] = useState({})
   const [weeklyLogs, setWeeklyLogs] = useState([])
@@ -201,6 +318,24 @@ export default function Dashboard() {
             const calcSpeed = dur > 0 && dist > 0 ? Number((dist / (dur / 60)).toFixed(2)) : 3.5
             const setsCount = parseInt(l.sets) || 3
 
+            // ดึงค่าแคลจริง (custom_kcal) จากแท็ก [แคลจริง: ...] หรือ [custom_kcal: ...] หรือ localStorage หรือ l.kcal_burned
+            const customKcalMatch =
+              String(l.notes || '').match(/\[แคลจริง:\s*([0-9.]+)\]/) ||
+              String(l.notes || '').match(/\[custom_kcal:\s*([0-9.]+)\]/)
+            let loadedCustomKcal = ''
+            if (customKcalMatch) {
+              loadedCustomKcal = customKcalMatch[1]
+            } else {
+              try {
+                const localKcal = localStorage.getItem(`custom_kcal_${targetDate}_${l.exercise_name}`)
+                if (localKcal) {
+                  loadedCustomKcal = localKcal
+                } else if (l.kcal_burned && Number(l.kcal_burned) > 0) {
+                  loadedCustomKcal = String(l.kcal_burned)
+                }
+              } catch {}
+            }
+
             return {
               uuid: crypto.randomUUID(),
               name: l.exercise_name,
@@ -216,6 +351,7 @@ export default function Dashboard() {
               distance_km: dist,
               speed_kmh: calcSpeed,
               kcal_per_unit: findDefaultKcalUnit(l.exercise_name, l.muscle_group),
+              custom_kcal: loadedCustomKcal,
               notes: l.notes || '',
               completed_sets: Array.from({ length: setsCount }, (_, idx) => idx + 1)
             }
@@ -557,8 +693,11 @@ export default function Dashboard() {
           : [...currentCompleted, setNumber]
 
         if (!isAlreadyDone) {
+          const restSec = parseInt(item.rest_sec) || 90
+          const shortName = (item.name || '').split('(')[0].trim()
+          handleStartRestTimer(restSec, `${shortName} (จบเซ็ตที่ ${setNumber})`)
           setRestTimerRequest({
-            seconds: parseInt(item.rest_sec) || 90,
+            seconds: restSec,
             exerciseName: item.name,
             setNumber,
             timestamp: Date.now()
@@ -629,6 +768,12 @@ export default function Dashboard() {
     setTodayWorkouts(prev =>
       prev.map(item => {
         if (item.uuid !== uuid) return item
+
+        if (field === 'custom_kcal') {
+          try {
+            localStorage.setItem(`custom_kcal_${selectedDate}_${item.name}`, String(value || ''))
+          } catch {}
+        }
 
         const updated = { ...item, [field]: value }
 
@@ -723,10 +868,25 @@ export default function Dashboard() {
             ? `Speed ${item.speed_kmh || 0} km/h | Incline ${item.incline}%`
             : `ความหนักประเมิน ${effortEval.intensityPercent}%`
         const rawNote = item.notes || defaultNote
-        const finalNote =
-          activeProgTitle && !rawNote.includes('[โปรแกรม:')
-            ? `[โปรแกรม: ${activeProgTitle}] ${rawNote}`
-            : rawNote
+
+        const hasCustom =
+          item.custom_kcal !== undefined &&
+          item.custom_kcal !== '' &&
+          item.custom_kcal !== null
+        const customKcalVal = hasCustom ? String(item.custom_kcal).trim() : ''
+
+        let cleanRawNote = String(rawNote).replace(/\[แคลจริง:[^\]]+\]/g, '').replace(/\[custom_kcal:[^\]]+\]/g, '').trim()
+        let finalNote =
+          activeProgTitle && !cleanRawNote.includes('[โปรแกรม:')
+            ? `[โปรแกรม: ${activeProgTitle}] ${cleanRawNote}`
+            : cleanRawNote
+
+        if (customKcalVal) {
+          finalNote = `${finalNote} [แคลจริง:${customKcalVal}]`.trim()
+          try {
+            localStorage.setItem(`custom_kcal_${selectedDate}_${item.name}`, customKcalVal)
+          } catch {}
+        }
 
         return {
           workout_id: activeWorkoutId,
@@ -1072,148 +1232,101 @@ export default function Dashboard() {
   if (!user) return <div className="flex items-center justify-center h-screen text-slate-500">กำลังโหลดระบบวิเคราะห์ข้อมูล...</div>
 
   return (
-    <div className="min-h-screen pb-24 bg-stone-100 text-slate-800">
-      
-      {/* Top Navigation Bar with Body Strength Level & Command Menu Button */}
+        <div className="min-h-screen pb-28 bg-stone-100 text-slate-800">
+
+      {/* แถบด้านบนแบบกะทัดรัด: เลื่อนลงบนมือถือจะเหลือแค่ชื่อ ทีม และความแข็งแรง */}
       <nav className="sticky top-0 z-40 bg-gradient-to-r from-emerald-950 via-slate-900 to-teal-950 text-white shadow-md">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-3 max-w-7xl mx-auto">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 font-black text-emerald-950 bg-emerald-400 rounded-xl shadow-xs shrink-0">
-              🌲
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                <h1 className="text-sm sm:text-lg font-extrabold tracking-wide text-white">
+        <div
+          className={`max-w-7xl mx-auto px-3 sm:px-6 transition-all duration-200 ${
+            isHeaderCompact ? 'py-1.5 sm:py-2' : 'py-2 sm:py-2.5'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2">
+            {/* ซ้าย: ชื่อ + ทีม + ความแข็งแรง (แสดงตลอด) */}
+            <div className="flex items-center gap-2 min-w-0">
+              <div
+                className={`flex items-center justify-center font-black text-emerald-950 bg-emerald-400 rounded-lg shrink-0 transition-all ${
+                  isHeaderCompact ? 'w-7 h-7 text-sm' : 'w-8 h-8 text-base'
+                }`}
+              >
+                🌲
+              </div>
+
+              <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                <h1 className="text-sm sm:text-base font-extrabold text-white truncate max-w-[9rem] sm:max-w-none">
                   {userDisplayName}
                 </h1>
-                <span className={`px-2 py-0.5 text-[10px] font-black border rounded-full ${getTeamBadgeClasses(userTeamColor)}`}>
+                <span
+                  className={`px-2 py-0.5 text-xs font-black border rounded-full whitespace-nowrap ${getTeamBadgeClasses(userTeamColor)}`}
+                >
                   {userTeamName} {userTeamIcon}
                 </span>
-
-                {/* ป้ายแสดงระดับความแข็งแรงของร่างกายบนแถบด้านบน */}
-                <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[10px] sm:text-[11px] font-black ${bodyStrengthStatus.badgeClass}`}>
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-black whitespace-nowrap ${bodyStrengthStatus.badgeClass}`}
+                  title={bodyStrengthStatus.title}
+                >
                   <span>{bodyStrengthStatus.icon}</span>
-                  <span>ความแข็งแรง: {bodyStrengthStatus.title}</span>
-                  <span className="px-1.5 py-0.2 bg-black/30 rounded-full text-white">
+                  {/* มือถือแสดงแค่ Lv. / คอมแสดงชื่อระดับเต็ม */}
+                  <span className="sm:hidden">Lv.{bodyStrengthStatus.level}</span>
+                  <span className="hidden sm:inline">{bodyStrengthStatus.title}</span>
+                  <span className="px-1.5 bg-black/30 rounded-full text-white">
                     {bodyStrengthStatus.score}%
                   </span>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 mt-1">
-                <p className="text-[11px] text-emerald-200/80">
-                  ประจำ{activeDayPlanObj?.dayNameFull}ที่ {activeDayPlanObj?.dayNum} ({selectedDate}) •{' '}
-                  {currentSelectedProgramTitle ? (
-                    <span>
-                      โหมดที่เลือกวันนี้: <strong className="text-amber-300">🎯 {currentSelectedProgramTitle}</strong>
-                    </span>
-                  ) : (
-                    <span>
-                      สถานะวันนี้: <strong className="text-emerald-300">⏳ รอเลือกโหมด (แนะนำ: {activeDayPlanObj?.module?.title})</strong>
-                    </span>
-                  )}
-                </p>
-
-                {/* หลอดความแข็งแรงขนาดกะทัดรัดบนแถบด้านบน */}
-                <div className="hidden md:flex items-center gap-2 bg-slate-950/50 px-2.5 py-0.5 rounded-full border border-emerald-800/60">
-                  <span className="text-[10px] font-bold text-emerald-300">
-                    💪 ระดับร่างกาย ({bodyStrengthStatus.subLabel})
-                  </span>
-                  <div className="w-20 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full bg-gradient-to-r ${bodyStrengthStatus.barClass}`}
-                      style={{ width: `${bodyStrengthStatus.score}%` }}
-                    />
-                  </div>
-                </div>
+                </span>
               </div>
             </div>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Command Menu Toggle Button (ใช้ชื่อย่อที่กระชับ) */}
-            <button
-              type="button"
-              onClick={() => setIsCommandMenuOpen(prev => !prev)}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-black text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-xl transition shadow-md"
+            {/* ขวา: ปุ่มต่างๆ (บนมือถือจะซ่อนเมื่อเลื่อนลง) */}
+            <div
+              className={`items-center gap-1.5 shrink-0 ${
+                isHeaderCompact ? 'hidden sm:flex' : 'flex'
+              }`}
             >
-              <span>🧭 เมนู: {activeTabObj.icon} {activeTabObj.shortTitle}</span>
-              <span className="text-[10px] bg-slate-950/20 px-1.5 py-0.5 rounded">▼</span>
-            </button>
-
-            {canAccessTrainerConsole && (
-              <button
-                type="button"
-                onClick={() => navigate('/trainer')}
-                className="px-3 py-2 text-xs font-extrabold text-slate-950 transition bg-amber-400 rounded-xl hover:bg-amber-300"
-              >
-                โหมด Trainer
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => navigate('/profile')}
-              className="px-3 py-2 text-xs font-semibold text-slate-200 transition bg-slate-800 border border-slate-600 rounded-xl hover:bg-slate-700"
-            >
-              ตั้งค่าสรีระ
-            </button>
-
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="px-3 py-2 text-xs font-semibold text-white transition bg-rose-600 rounded-xl hover:bg-rose-700"
-            >
-              ออก
-            </button>
-          </div>
-        </div>
-
-        {/* Command Menu Dropdown Panel (แผงเมนูคำสั่งแบบ Grid มืออาชีพ) */}
-        {isCommandMenuOpen && (
-          <div className="bg-slate-950/98 border-t border-emerald-900/80 p-4 shadow-2xl animate-in fade-in duration-200">
-            <div className="max-w-7xl mx-auto space-y-3">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-400 px-1">
-                <span>เลือกโหมดการทำงานและระบบวิเคราะห์ (Command Center):</span>
+              {canAccessTrainerConsole && (
                 <button
                   type="button"
-                  onClick={() => setIsCommandMenuOpen(false)}
-                  className="text-slate-300 hover:text-white"
+                  onClick={() => navigate('/trainer')}
+                  className="px-2.5 py-1.5 text-xs font-extrabold text-slate-950 bg-amber-400 rounded-lg hover:bg-amber-300"
                 >
-                  ✕ ปิดเมนู
+                  👑 <span className="hidden sm:inline">Trainer</span>
                 </button>
-              </div>
-
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                {navigationTabsList.map(tab => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => {
-                      setActiveTab(tab.id)
-                      setIsCommandMenuOpen(false)
-                    }}
-                    className={`flex items-center gap-3 p-3.5 rounded-2xl border text-left transition ${
-                      activeTab === tab.id
-                        ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black shadow-md'
-                        : 'bg-slate-900 text-slate-200 border-slate-800 hover:bg-emerald-950/60'
-                    }`}
-                  >
-                    <span className="text-2xl">{tab.icon}</span>
-                    <div>
-                      <div className="text-xs font-black">{tab.shortTitle} — {tab.title}</div>
-                      <div className="text-[10px] opacity-75">คลิกเพื่อเข้าสู่หน้าทำงานนี้</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
+              )}
+              <button
+                type="button"
+                onClick={() => navigate('/profile')}
+                className="px-2.5 py-1.5 text-xs font-bold text-slate-100 bg-slate-800 border border-slate-600 rounded-lg hover:bg-slate-700"
+                title="ตั้งค่าสรีระ"
+              >
+                ⚙️ <span className="hidden sm:inline">ตั้งค่า</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="px-2.5 py-1.5 text-xs font-bold text-white bg-rose-600 rounded-lg hover:bg-rose-700"
+              >
+                ออก
+              </button>
             </div>
           </div>
-        )}
+
+          {/* บรรทัดที่ 2: วันที่ + โหมดวันนี้ (บนมือถือจะซ่อนเมื่อเลื่อนลง) */}
+          <div
+            className={`text-xs text-emerald-200/90 mt-1 truncate ${
+              isHeaderCompact ? 'hidden sm:block' : 'block'
+            }`}
+          >
+            {activeDayPlanObj?.dayNameFull} {selectedDate} •{' '}
+            {currentSelectedProgramTitle ? (
+              <strong className="text-amber-300">🎯 {currentSelectedProgramTitle}</strong>
+            ) : (
+              <span className="text-emerald-300">แนะนำวันนี้: {activeDayPlanObj?.module?.title}</span>
+            )}
+          </div>
+        </div>
       </nav>
-
+      
+      {/* เติมบรรทัดนี้ลงไป */}
       <div className="px-4 sm:px-6 pt-6 mx-auto max-w-7xl space-y-6">
-
         {/* แถบสรุป KPI ประจำวัน */}
         <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
           <div className="p-4 bg-white border border-stone-200 rounded-2xl shadow-xs">
@@ -1289,6 +1402,10 @@ export default function Dashboard() {
               profile={profile}
               bioMetrics={bioMetrics}
               dailyMetrics={dailyMetrics}
+              restTimer={restTimer}
+              onStartManualTimer={handleStartRestTimer}
+              onAdjustTimer={handleAdjustRestTimer}
+              onStopTimer={handleStopRestTimer}
             />
 
             {isLoadingDate ? (
@@ -1625,13 +1742,6 @@ export default function Dashboard() {
            ===================================================================== */}
         {activeTab === 'nutrition' && (
           <div className="space-y-6">
-            <LiveGymToolbar
-              restTimerRequest={restTimerRequest}
-              onClearRestRequest={() => setRestTimerRequest(null)}
-              profile={profile}
-              bioMetrics={bioMetrics}
-              dailyMetrics={dailyMetrics}
-            />
             <MealPlannerWidget
               profile={profile}
               activeBurnKcal={dailyMetrics.totalCalories}
@@ -1647,28 +1757,41 @@ export default function Dashboard() {
 
       </div>
 
-      {/* Bottom Floating Navigation Dock สำหรับมือถือ (ชื่อกระชับ ไม่โดนตัดเป็น ...) */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-slate-950/95 border-t border-emerald-900/60 backdrop-blur-md px-2 py-2 sm:hidden">
-        <div className="grid grid-cols-6 gap-1">
-          {navigationTabsList.map(tab => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition ${
-                activeTab === tab.id
-                  ? 'text-emerald-400 font-black bg-emerald-950/60'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <span className="text-base leading-none">{tab.icon}</span>
-              <span className="text-[10px] mt-1 leading-none whitespace-nowrap">
-                {tab.shortTitle}
-              </span>
-            </button>
-          ))}
+      {/* แถบเมนูด้านล่าง ใช้แบบเดียวกันทั้งมือถือและคอม */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 border-t border-emerald-900/60 backdrop-blur-md pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-1.5">
+        <div className="grid grid-cols-6 gap-1 max-w-3xl mx-auto px-1.5 sm:px-4">
+          {navigationTabsList.map(tab => {
+            const isActive = activeTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setActiveTab(tab.id)
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
+                className={`flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 py-1.5 sm:py-2.5 px-0.5 rounded-xl transition ${
+                  isActive
+                    ? 'text-emerald-300 bg-emerald-900/50 font-black'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60 font-bold'
+                }`}
+              >
+                <span className="text-xl sm:text-lg leading-none">{tab.icon}</span>
+                <span className="text-xs sm:text-sm leading-none whitespace-nowrap">
+                  {tab.shortTitle}
+                </span>
+              </button>
+            )
+          })}
         </div>
       </div>
+
+      {/* Floating Rest Timer Icon & Pill: แสดงเวลานับถอยหลัง ปรับเวลา และหยุด แสดงได้ทุกหน้าเมื่อมีการจับเวลา */}
+      <FloatingRestTimer
+        restTimer={restTimer}
+        onAdjustTimer={handleAdjustRestTimer}
+        onStopTimer={handleStopRestTimer}
+      />
 
       <ExerciseModal 
         isOpen={isModalOpen} 

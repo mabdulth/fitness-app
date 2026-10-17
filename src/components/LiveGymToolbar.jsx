@@ -108,69 +108,98 @@ function playCompletionBeep() {
   } catch {}
 }
 
-export default function LiveGymToolbar({ restTimerRequest, onClearRestRequest, profile, bioMetrics, dailyMetrics }) {
-  const [timerActive, setTimerActive] = useState(false)
-  const [remainingSec, setRemainingSec] = useState(0)
-  const [totalSec, setTotalSec] = useState(90)
-  const [activeLabel, setActiveLabel] = useState('')
-  const [justFinished, setJustFinished] = useState(false)
+export default function LiveGymToolbar({
+  restTimerRequest,
+  onClearRestRequest,
+  profile,
+  bioMetrics,
+  dailyMetrics,
+  restTimer,
+  onStartManualTimer,
+  onAdjustTimer,
+  onStopTimer
+}) {
+  const [internalTimerActive, setInternalTimerActive] = useState(false)
+  const [internalRemainingSec, setInternalRemainingSec] = useState(0)
+  const [internalTotalSec, setInternalTotalSec] = useState(90)
+  const [internalActiveLabel, setInternalActiveLabel] = useState('')
+  const [internalJustFinished, setInternalJustFinished] = useState(false)
 
   const endTimeRef = useRef(null)
 
-  useEffect(() => {
-    if (restTimerRequest && restTimerRequest.timestamp) {
-      const duration = Math.max(15, parseInt(restTimerRequest.seconds) || 90)
-      endTimeRef.current = Date.now() + duration * 1000
-      setTotalSec(duration)
-      setRemainingSec(duration)
-      setActiveLabel(`${restTimerRequest.exerciseName.split('(')[0]} (จบเซ็ตที่ ${restTimerRequest.setNumber})`)
-      setTimerActive(true)
-      setJustFinished(false)
-    }
-  }, [restTimerRequest])
+  const isShared = Boolean(restTimer)
+  const timerActive = isShared ? restTimer.active : internalTimerActive
+  const remainingSec = isShared ? restTimer.remainingSec : internalRemainingSec
+  const totalSec = isShared ? restTimer.totalSec : internalTotalSec
+  const activeLabel = isShared ? restTimer.label : internalActiveLabel
+  const justFinished = isShared ? restTimer.justFinished : internalJustFinished
 
   useEffect(() => {
-    if (!timerActive) return
+    if (!isShared && restTimerRequest && restTimerRequest.timestamp) {
+      const duration = Math.max(15, parseInt(restTimerRequest.seconds) || 90)
+      endTimeRef.current = Date.now() + duration * 1000
+      setInternalTotalSec(duration)
+      setInternalRemainingSec(duration)
+      setInternalActiveLabel(`${restTimerRequest.exerciseName.split('(')[0]} (จบเซ็ตที่ ${restTimerRequest.setNumber})`)
+      setInternalTimerActive(true)
+      setInternalJustFinished(false)
+    }
+  }, [restTimerRequest, isShared])
+
+  useEffect(() => {
+    if (isShared || !internalTimerActive) return
     const interval = setInterval(() => {
       if (!endTimeRef.current) return
       const diffSec = Math.ceil((endTimeRef.current - Date.now()) / 1000)
       if (diffSec <= 0) {
-        setRemainingSec(0)
-        setTimerActive(false)
-        setJustFinished(true)
+        setInternalRemainingSec(0)
+        setInternalTimerActive(false)
+        setInternalJustFinished(true)
         endTimeRef.current = null
         playCompletionBeep()
       } else {
-        setRemainingSec(diffSec)
+        setInternalRemainingSec(diffSec)
       }
     }, 250)
     return () => clearInterval(interval)
-  }, [timerActive])
+  }, [internalTimerActive, isShared])
 
   const handleStartManualTimer = (sec, label = 'MANUAL OVERRIDE') => {
+    if (isShared && onStartManualTimer) {
+      onStartManualTimer(sec, label)
+      return
+    }
     endTimeRef.current = Date.now() + sec * 1000
-    setTotalSec(sec)
-    setRemainingSec(sec)
-    setActiveLabel(label)
-    setTimerActive(true)
-    setJustFinished(false)
+    setInternalTotalSec(sec)
+    setInternalRemainingSec(sec)
+    setInternalActiveLabel(label)
+    setInternalTimerActive(true)
+    setInternalJustFinished(false)
   }
 
   const handleAdjustTimer = (deltaSec) => {
-    if (!timerActive || !endTimeRef.current) {
+    if (isShared && onAdjustTimer) {
+      onAdjustTimer(deltaSec)
+      return
+    }
+    if (!internalTimerActive || !endTimeRef.current) {
       handleStartManualTimer(Math.max(15, deltaSec), 'QUICK TIMER')
       return
     }
     endTimeRef.current += deltaSec * 1000
     const updatedRemaining = Math.max(0, Math.ceil((endTimeRef.current - Date.now()) / 1000))
-    setRemainingSec(updatedRemaining)
-    setTotalSec(prev => Math.max(updatedRemaining, prev + deltaSec))
+    setInternalRemainingSec(updatedRemaining)
+    setInternalTotalSec(prev => Math.max(updatedRemaining, prev + deltaSec))
   }
 
   const handleStopTimer = () => {
-    setTimerActive(false)
-    setRemainingSec(0)
-    setJustFinished(false)
+    if (isShared && onStopTimer) {
+      onStopTimer()
+      return
+    }
+    setInternalTimerActive(false)
+    setInternalRemainingSec(0)
+    setInternalJustFinished(false)
     endTimeRef.current = null
     if (onClearRestRequest) onClearRestRequest()
   }
