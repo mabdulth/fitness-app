@@ -1862,7 +1862,8 @@ export default function TrainerPanel() {
                                 name={row.name}
                                 muscle={matchedEx?.muscle}
                                 type={matchedEx?.type}
-                                size="sm"
+                                size="lg"
+                                compactAnimated={true}
                               />
                               <select
                                 value={row.name}

@@ -337,6 +337,11 @@ export default function Dashboard() {
               } catch {}
             }
 
+            const unitMatch = String(l.notes || '').match(/\[หน่วย:([^\]]+)\]/)
+            const rawWeightMatch = String(l.notes || '').match(/\[weight_raw:([^\]]+)\]/)
+            const loadedUnit = unitMatch ? unitMatch[1] : (l.equipment_type === 'Machine' || l.equipment_type === 'Cable' ? 'pin' : 'kg')
+            const loadedWeight = rawWeightMatch ? parseFloat(rawWeightMatch[1]) : (l.weight_kg || 0)
+
             return {
               uuid: crypto.randomUUID(),
               name: l.exercise_name,
@@ -345,7 +350,8 @@ export default function Dashboard() {
               type: l.equipment_type || 'Dumbbell',
               sets: setsCount,
               reps: l.reps || 10,
-              weight: l.weight_kg || 0,
+              weight: loadedWeight,
+              weight_unit: loadedUnit,
               rest_sec: l.rest_sec || 90,
               duration: dur,
               incline: l.incline ?? 0,
@@ -832,21 +838,51 @@ export default function Dashboard() {
           } catch {}
         }
 
+        if (field === 'weight_unit') {
+          const oldUnit = item.weight_unit || 'kg'
+          const newUnit = value
+          let currentWeight = parseFloat(item.weight) || 0
+
+          let convertedWeight = currentWeight
+          if (currentWeight > 0 && oldUnit !== newUnit) {
+            // First convert oldUnit to kg
+            let kg = currentWeight
+            if (oldUnit === 'lbs') kg = currentWeight * 0.453592
+            else if (oldUnit === 'pin') kg = currentWeight * 5
+
+            // Then convert kg to newUnit
+            if (newUnit === 'lbs') {
+              convertedWeight = Math.round(kg * 2.20462)
+            } else if (newUnit === 'pin') {
+              convertedWeight = Math.max(1, Math.round(kg / 5))
+            } else {
+              convertedWeight = Number(kg.toFixed(1))
+            }
+          }
+
+          return {
+            ...item,
+            weight_unit: newUnit,
+            weight: convertedWeight
+          }
+        }
+
         const updated = { ...item, [field]: value }
 
-        if (item.muscle === 'Cardio') {
-          const dur = parseFloat(field === 'duration' ? value : item.duration) || 0
+        if (item.muscle === 'Cardio' && value !== '' && !isNaN(parseFloat(value))) {
+          const parsedVal = parseFloat(value)
+          const dur = parseFloat(field === 'duration' ? parsedVal : item.duration) || 0
           const hours = dur / 60
 
-          if (field === 'distance_km' && hours > 0) {
-            const dist = parseFloat(value) || 0
-            updated.speed_kmh = Number((dist / hours).toFixed(2))
-          } else if (field === 'speed_kmh' && hours > 0) {
-            const spd = parseFloat(value) || 0
-            updated.distance_km = Number((spd * hours).toFixed(2))
-          } else if (field === 'duration' && hours > 0) {
+          if (field === 'distance_km' && hours > 0 && parsedVal > 0) {
+            updated.speed_kmh = Number((parsedVal / hours).toFixed(2))
+          } else if (field === 'speed_kmh' && hours > 0 && parsedVal > 0) {
+            updated.distance_km = Number((parsedVal * hours).toFixed(2))
+          } else if (field === 'duration' && hours > 0 && parsedVal > 0) {
             const dist = parseFloat(item.distance_km) || 0
-            updated.speed_kmh = Number((dist / hours).toFixed(2))
+            if (dist > 0) {
+              updated.speed_kmh = Number((dist / hours).toFixed(2))
+            }
           }
         }
 
@@ -945,6 +981,17 @@ export default function Dashboard() {
           } catch {}
         }
 
+        const unit = item.weight_unit || 'kg'
+        const rawWeight = parseFloat(item.weight) || 0
+        let weightInKg = rawWeight
+        if (unit === 'lbs') weightInKg = Number((rawWeight * 0.453592).toFixed(2))
+        else if (unit === 'pin') weightInKg = Number((rawWeight * 5).toFixed(2))
+
+        const unitNote = `[หน่วย:${unit}][weight_raw:${rawWeight}]`
+        if (!finalNote.includes('[หน่วย:')) {
+          finalNote = `${finalNote} ${unitNote}`.trim()
+        }
+
         return {
           workout_id: activeWorkoutId,
           exercise_name: item.name,
@@ -953,7 +1000,7 @@ export default function Dashboard() {
           equipment_type: item.type,
           sets: parseInt(item.sets) || 0,
           reps: parseInt(item.reps) || 0,
-          weight_kg: parseFloat(item.weight) || 0,
+          weight_kg: weightInKg,
           rpe: effortEval.autoRpe,
           rest_sec: parseInt(item.rest_sec) || 90,
           duration_mins: estimatedMins,

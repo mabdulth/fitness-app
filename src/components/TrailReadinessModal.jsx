@@ -142,29 +142,29 @@ function ParkElevationVisual({ park, isSelected = false }) {
   const youtubeSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent('เดินป่า ' + safeName)}`
 
   return (
-    <div
-      className={`relative w-full ${
-        isSelected ? 'h-72 sm:h-80' : 'h-36'
-      } bg-slate-950 rounded-2xl overflow-hidden border border-emerald-800/60 shadow-inner select-none`}
-    >
-      {realParkImg && (
-        <img
-          src={realParkImg}
-          alt={safeName}
-          className={`absolute inset-0 w-full h-full object-cover object-center transition duration-500 ${
-            hideGraphOverlay ? 'opacity-100 scale-105' : isSelected ? 'opacity-65' : 'opacity-50'
-          }`}
-        />
-      )}
-      {!hideGraphOverlay && (
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/35 to-slate-950/65" />
-      )}
+    <div className="w-full select-none">
+      <div
+        className={`relative w-full ${
+          isSelected ? 'h-80 sm:h-88' : 'h-40 sm:h-44'
+        } bg-slate-950 rounded-2xl overflow-hidden border border-emerald-800/60 shadow-inner`}
+      >
+        {realParkImg && (
+          <img
+            src={realParkImg}
+            alt={safeName}
+            className={`absolute inset-0 w-full h-full object-cover object-center transition duration-500 ${
+              hideGraphOverlay ? 'opacity-100 scale-105' : isSelected ? 'opacity-65' : 'opacity-50'
+            }`}
+          />
+        )}
+        {!hideGraphOverlay && (
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/35 to-slate-950/65" />
+        )}
 
-      {/* แถบปุ่มด้านบนของกราฟ */}
-      <div className="absolute top-2.5 left-3 right-3 flex flex-wrap items-center justify-between gap-1.5 z-20">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="px-2.5 py-1 text-[11px] sm:text-xs font-black bg-slate-950/90 text-emerald-300 rounded-lg border border-emerald-500/50 shadow-sm">
-            ⛰️ ความสูง {elevationM.toLocaleString()} ม. • ชันเฉลี่ย {avgInclinePct}%
+        {/* แถบปุ่มด้านบนของกราฟ (เรียบ สะอาด ไม่ซ้อนทับ) */}
+        <div className="absolute top-2.5 left-3 right-3 flex items-center justify-between gap-1.5 z-20">
+          <span className="px-2.5 py-1 text-[11px] sm:text-xs font-black bg-slate-950/90 text-emerald-300 rounded-lg border border-emerald-500/50 shadow-sm truncate">
+            ⛰️ สูง {elevationM.toLocaleString()} ม. • ชัน {avgInclinePct}%
           </span>
           {realParkImg && isSelected && (
             <button
@@ -173,107 +173,124 @@ function ParkElevationVisual({ park, isSelected = false }) {
                 e.stopPropagation()
                 setHideGraphOverlay(prev => !prev)
               }}
-              className="px-2.5 py-1 text-[11px] sm:text-xs font-extrabold text-white bg-emerald-700/95 hover:bg-emerald-600 rounded-lg border border-emerald-400 shadow-sm transition"
+              className="px-2.5 py-1 text-[11px] sm:text-xs font-extrabold text-white bg-emerald-700/95 hover:bg-emerald-600 rounded-lg border border-emerald-400 shadow-sm transition shrink-0"
             >
-              {hideGraphOverlay ? '📈 แสดงกราฟความชัน' : '📸 ดูภาพจริงเต็มจอ'}
+              {hideGraphOverlay ? '📈 ดูกราฟความชัน' : '📸 ดูภาพจริง'}
             </button>
           )}
         </div>
 
-        {isSelected && (
-          <div className="flex items-center gap-1.5">
-            <a
-              href={googleImgSearchUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="px-2.5 py-1 text-[11px] font-extrabold bg-amber-400 text-slate-950 rounded-lg hover:bg-amber-300 transition shadow-sm"
+        {hideGraphOverlay && (
+          <div className="absolute bottom-3 left-3 right-3 z-20 flex items-center justify-between bg-slate-950/90 backdrop-blur-xs px-3 py-2 rounded-xl border border-white/20">
+            <span className="text-xs font-bold text-white">📸 {safeName} (จ.{safeProvince})</span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setHideGraphOverlay(false)
+              }}
+              className="text-[11px] font-extrabold text-emerald-300 underline"
             >
-              🖼️ ภาพจริง Google
-            </a>
-            <a
-              href={youtubeSearchUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="px-2.5 py-1 text-[11px] font-extrabold bg-rose-600 text-white rounded-lg hover:bg-rose-500 transition shadow-sm"
-            >
-              ▶ คลิป YouTube
-            </a>
+              เปิดกราฟความชัน ↗
+            </button>
           </div>
+        )}
+
+        {!hideGraphOverlay && (
+          <>
+            <svg viewBox="0 0 220 115" preserveAspectRatio="none" className="relative z-10 w-full h-full">
+              <defs>
+                <linearGradient id={`grad-${park?.id || 'default'}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor={strokeColor} stopOpacity="0.45" />
+                  <stop offset="100%" stopColor="#022c22" stopOpacity="0.08" />
+                </linearGradient>
+              </defs>
+
+              <polygon
+                points={`16,${baseY} 75,${peakY + 18} 128,${peakY + 7} 184,${peakY} 206,${baseY}`}
+                fill={`url(#grad-${park?.id || 'default'})`}
+                stroke={strokeColor}
+                strokeWidth="2"
+                strokeLinejoin="round"
+              />
+
+              <line
+                x1="16"
+                y1={baseY}
+                x2="184"
+                y2={peakY}
+                stroke="#e2e8f0"
+                strokeWidth="1.5"
+                strokeDasharray="3 3"
+              />
+
+              <line
+                x1="16"
+                y1={baseY}
+                x2={hikerX}
+                y2={hikerY}
+                stroke="#fbbf24"
+                strokeWidth="3.5"
+                strokeLinecap="round"
+              />
+
+              <circle cx="16" cy={baseY} r="3.5" fill="#10b981" stroke="#0f172a" strokeWidth="1.5" />
+              <circle cx="184" cy={peakY} r="4.5" fill={strokeColor} stroke="#ffffff" strokeWidth="1.5" />
+              <circle cx={hikerX} cy={hikerY} r="5.5" fill="#fbbf24" stroke="#0f172a" strokeWidth="2" />
+            </svg>
+
+            {isSelected ? (
+              /* ป้ายด้านล่างจัดระเบียบ 2 แถว ไม่ซ้อนทับ */
+              <div className="absolute bottom-2.5 left-3 right-3 z-20 flex flex-col gap-1.5 pointer-events-none">
+                <div className="flex items-center justify-between gap-1.5 text-[10px] sm:text-[11px]">
+                  <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 font-extrabold text-emerald-200 bg-slate-950/90 border border-emerald-700/70 rounded-lg shadow-sm whitespace-nowrap">
+                    🚩 เริ่ม: 0 กม.
+                  </span>
+                  <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 font-extrabold text-rose-200 bg-rose-950/90 border border-rose-500/60 rounded-lg shadow-sm whitespace-nowrap">
+                    ⛰️ ยอด: {distanceKm} กม. ({elevationM.toLocaleString()} ม.)
+                  </span>
+                </div>
+
+                <div className="w-full px-2.5 py-1 sm:py-1.5 text-center text-[11px] sm:text-xs font-black text-amber-300 bg-slate-950/95 border-2 border-amber-400 rounded-xl shadow-lg">
+                  ⚡ คุณพร้อมปีนถึงจุดนี้: {overallScore}% (~{achievedDistanceKm} กม. • {achievedElevationM.toLocaleString()} ม.)
+                </div>
+              </div>
+            ) : (
+              <div className="absolute bottom-2 left-2.5 right-2.5 z-20 flex items-center justify-between pointer-events-none">
+                <span className="px-2 py-0.5 text-[11px] font-bold text-slate-200 bg-slate-950/85 rounded-md">
+                  ระยะ {distanceKm} กม.
+                </span>
+                <span className="px-2 py-0.5 text-[11px] font-black text-amber-300 bg-slate-950/90 border border-amber-400/50 rounded-md">
+                  พร้อม {overallScore}%
+                </span>
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      {!hideGraphOverlay && (
-        <>
-          <svg viewBox="0 0 220 115" preserveAspectRatio="none" className="relative z-10 w-full h-full">
-            <defs>
-              <linearGradient id={`grad-${park?.id || 'default'}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor={strokeColor} stopOpacity="0.45" />
-                <stop offset="100%" stopColor="#022c22" stopOpacity="0.08" />
-              </linearGradient>
-            </defs>
-
-            <polygon
-              points={`16,${baseY} 75,${peakY + 18} 128,${peakY + 7} 184,${peakY} 206,${baseY}`}
-              fill={`url(#grad-${park?.id || 'default'})`}
-              stroke={strokeColor}
-              strokeWidth="2"
-              strokeLinejoin="round"
-            />
-
-            <line
-              x1="16"
-              y1={baseY}
-              x2="184"
-              y2={peakY}
-              stroke="#e2e8f0"
-              strokeWidth="1.5"
-              strokeDasharray="3 3"
-            />
-
-            <line
-              x1="16"
-              y1={baseY}
-              x2={hikerX}
-              y2={hikerY}
-              stroke="#fbbf24"
-              strokeWidth="3.5"
-              strokeLinecap="round"
-            />
-
-            <circle cx="16" cy={baseY} r="3.5" fill="#10b981" stroke="#0f172a" strokeWidth="1.5" />
-            <circle cx="184" cy={peakY} r="4.5" fill={strokeColor} stroke="#ffffff" strokeWidth="1.5" />
-            <circle cx={hikerX} cy={hikerY} r="5.5" fill="#fbbf24" stroke="#0f172a" strokeWidth="2" />
-          </svg>
-
-          {isSelected ? (
-            /* จัดเรียงป้ายด้านล่างเป็น 2 แถวแยกกันชัดเจน ไม่ซ้อนทับกันในทุกขนาดหน้าจอ */
-            <div className="absolute bottom-2.5 left-3 right-3 z-20 flex flex-col gap-1.5 pointer-events-none">
-              <div className="flex items-center justify-between gap-2">
-                <span className="px-2.5 py-1 text-[11px] font-extrabold text-emerald-200 bg-slate-950/90 border border-emerald-700/70 rounded-lg shadow-sm">
-                  🚩 เริ่มเดิน: 0 กม.
-                </span>
-                <span className="px-2.5 py-1 text-[11px] font-extrabold text-rose-200 bg-rose-950/90 border border-rose-500/60 rounded-lg shadow-sm">
-                  ⛰️ ยอดเขา: {distanceKm} กม. ({elevationM.toLocaleString()} ม.)
-                </span>
-              </div>
-
-              <div className="w-full px-3 py-1.5 text-center text-xs sm:text-sm font-black text-amber-300 bg-slate-950/95 border-2 border-amber-400 rounded-xl shadow-lg">
-                ⚡ คุณพร้อมปีนถึงจุดนี้: {overallScore}% (~{achievedDistanceKm} กม. • ระดับ {achievedElevationM.toLocaleString()} ม.)
-              </div>
-            </div>
-          ) : (
-            <div className="absolute bottom-2 left-2.5 right-2.5 z-20 flex items-center justify-between pointer-events-none">
-              <span className="px-2 py-0.5 text-[11px] font-bold text-slate-200 bg-slate-950/85 rounded-md">
-                ระยะ {distanceKm} กม.
-              </span>
-              <span className="px-2 py-0.5 text-[11px] font-black text-amber-300 bg-slate-950/90 border border-amber-400/50 rounded-md">
-                พร้อม {overallScore}%
-              </span>
-            </div>
-          )}
-        </>
+      {/* แถบปุ่มลิงก์ภายนอก แยกออกมาด้านนอกรูปภาพสำหรับ Mobile ไม่เกะกะ */}
+      {isSelected && (
+        <div className="flex items-center gap-2 mt-2.5">
+          <a
+            href={googleImgSearchUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="flex-1 py-2 px-3 text-center text-xs font-black bg-amber-400 text-slate-950 rounded-xl hover:bg-amber-300 transition shadow-sm flex items-center justify-center gap-1.5"
+          >
+            🖼️ ภาพจริง Google
+          </a>
+          <a
+            href={youtubeSearchUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="flex-1 py-2 px-3 text-center text-xs font-black bg-rose-600 text-white rounded-xl hover:bg-rose-500 transition shadow-sm flex items-center justify-center gap-1.5"
+          >
+            ▶ คลิป YouTube
+          </a>
+        </div>
       )}
     </div>
   )

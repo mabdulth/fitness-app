@@ -960,6 +960,7 @@ export default function DailyHeroCards({
           const setsNum = Math.max(1, parseInt(item.sets) || (isWarmupEx ? 2 : 3))
           const repsNum = Math.max(1, parseInt(item.reps) || (isWarmupEx ? 15 : 12))
           const weightNum = parseFloat(item.weight) || 0
+          const weightUnit = item.weight_unit || (item.type === 'Machine' || item.type === 'Cable' ? 'pin' : 'kg')
           const loadMeta = getEquipmentLoadMeta(item)
 
           const effortEval = evaluateTrainingContinuityAndEffort({
@@ -1119,21 +1120,37 @@ export default function DailyHeroCards({
                               onClick={() =>
                                 onUpdateStats(item.uuid, 'sets', Math.max(1, setsNum - 1))
                               }
-                              className="w-8 h-8 sm:w-9 sm:h-9 text-base font-black bg-slate-800 rounded-xl hover:bg-slate-700"
+                              className="w-8 h-8 sm:w-9 sm:h-9 text-base font-black bg-slate-800 rounded-xl hover:bg-slate-700 cursor-pointer"
                             >
                               -
                             </button>
                           )}
-                          <span className="text-2xl sm:text-3xl font-black text-emerald-400">
-                            {setsNum}
-                          </span>
+                          {existsInParent ? (
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              value={item.sets ?? ''}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => onUpdateStats(item.uuid, 'sets', e.target.value)}
+                              onBlur={(e) => {
+                                if (e.target.value === '' || parseInt(e.target.value) <= 0) {
+                                  onUpdateStats(item.uuid, 'sets', isWarmupEx ? 2 : 3)
+                                }
+                              }}
+                              className="w-12 text-center text-2xl sm:text-3xl font-black text-emerald-400 bg-transparent border-b border-slate-600 focus:outline-none focus:border-emerald-400"
+                            />
+                          ) : (
+                            <span className="text-2xl sm:text-3xl font-black text-emerald-400">
+                              {setsNum}
+                            </span>
+                          )}
                           {existsInParent && (
                             <button
                               type="button"
                               onClick={() =>
                                 onUpdateStats(item.uuid, 'sets', Math.min(10, setsNum + 1))
                               }
-                              className="w-8 h-8 sm:w-9 sm:h-9 text-base font-black bg-slate-800 rounded-xl hover:bg-slate-700"
+                              className="w-8 h-8 sm:w-9 sm:h-9 text-base font-black bg-slate-800 rounded-xl hover:bg-slate-700 cursor-pointer"
                             >
                               +
                             </button>
@@ -1163,9 +1180,25 @@ export default function DailyHeroCards({
                               -
                             </button>
                           )}
-                          <span className="text-2xl sm:text-3xl font-black text-sky-400">
-                            {repsNum}
-                          </span>
+                          {existsInParent ? (
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              value={item.reps ?? ''}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => onUpdateStats(item.uuid, 'reps', e.target.value)}
+                              onBlur={(e) => {
+                                if (e.target.value === '' || parseInt(e.target.value) <= 0) {
+                                  onUpdateStats(item.uuid, 'reps', isPlankHold ? 30 : isWarmupEx ? 15 : 10)
+                                }
+                              }}
+                              className="w-14 text-center text-2xl sm:text-3xl font-black text-sky-400 bg-transparent border-b border-slate-600 focus:outline-none focus:border-sky-400"
+                            />
+                          ) : (
+                            <span className="text-2xl sm:text-3xl font-black text-sky-400">
+                              {repsNum}
+                            </span>
+                          )}
                           {existsInParent && (
                             <button
                               type="button"
@@ -1187,25 +1220,67 @@ export default function DailyHeroCards({
                         </span>
                       </div>
 
-                      {/* 3. น้ำหนัก */}
-                      <div className="p-3 text-center bg-emerald-950 text-white border border-emerald-700 rounded-2xl">
-                        <span className="text-xs font-extrabold text-emerald-300 block">
-                          {isPlankHold
-                            ? 'แรงต้าน'
-                            : isWarmupEx
-                              ? 'น้ำหนัก'
-                              : loadMeta.isPerSide
-                                ? 'กก./ข้าง'
-                                : 'น้ำหนัก (kg)'}
-                        </span>
-                        <div className="flex items-center justify-center gap-1.5 mt-1.5">
+                      {/* 3. น้ำหนัก (3 โหมด: กิโลกรัม / ปอนด์ / เบอร์แผ่นเครื่อง) */}
+                      <div className="p-3 text-center bg-emerald-950 text-white border border-emerald-700 rounded-2xl flex flex-col justify-between">
+                        {/* Header: Title + Unit Toggle Pill */}
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <span className="text-[11px] font-extrabold text-emerald-300">
+                            {isPlankHold
+                              ? 'แรงต้าน'
+                              : isWarmupEx
+                                ? 'น้ำหนัก'
+                                : weightUnit === 'pin'
+                                  ? 'เบอร์แผ่น'
+                                  : weightUnit === 'lbs'
+                                    ? 'น้ำหนัก (lbs)'
+                                    : loadMeta.isPerSide
+                                      ? 'กก./ข้าง'
+                                      : 'น้ำหนัก (kg)'}
+                          </span>
+                          {existsInParent && !isWarmupEx && !isPlankHold && (
+                            <div className="inline-flex rounded-lg bg-emerald-900/90 p-0.5 text-[10px] font-black border border-emerald-600/40">
+                              <button
+                                type="button"
+                                onClick={() => onUpdateStats(item.uuid, 'weight_unit', 'kg')}
+                                className={`px-1.5 py-0.5 rounded cursor-pointer transition ${
+                                  weightUnit === 'kg' ? 'bg-emerald-400 text-slate-950 font-black shadow-xs' : 'text-emerald-200 hover:text-white'
+                                }`}
+                              >
+                                kg
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onUpdateStats(item.uuid, 'weight_unit', 'lbs')}
+                                className={`px-1.5 py-0.5 rounded cursor-pointer transition ${
+                                  weightUnit === 'lbs' ? 'bg-emerald-400 text-slate-950 font-black shadow-xs' : 'text-emerald-200 hover:text-white'
+                                }`}
+                              >
+                                lbs
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onUpdateStats(item.uuid, 'weight_unit', 'pin')}
+                                className={`px-1.5 py-0.5 rounded cursor-pointer transition ${
+                                  weightUnit === 'pin' ? 'bg-emerald-400 text-slate-950 font-black shadow-xs' : 'text-emerald-200 hover:text-white'
+                                }`}
+                                title="ระดับสลักแผ่นเครื่องแมชชีน (Pin Stack #)"
+                              >
+                                เบอร์
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Input Row: [-] [Input] [+] */}
+                        <div className="flex items-center justify-center gap-1.5 my-1">
                           {existsInParent && !isWarmupEx && !isPlankHold && (
                             <button
                               type="button"
-                              onClick={() =>
-                                onUpdateStats(item.uuid, 'weight', Math.max(0, weightNum - 2.5))
-                              }
-                              className="w-8 h-8 sm:w-9 sm:h-9 text-base font-black bg-emerald-900 rounded-xl hover:bg-emerald-800"
+                              onClick={() => {
+                                const step = weightUnit === 'pin' ? 1 : weightUnit === 'lbs' ? 5 : 2.5
+                                onUpdateStats(item.uuid, 'weight', Math.max(0, weightNum - step))
+                              }}
+                              className="w-8 h-8 sm:w-9 sm:h-9 text-base font-black bg-emerald-900 rounded-xl hover:bg-emerald-800 cursor-pointer"
                             >
                               -
                             </button>
@@ -1213,10 +1288,17 @@ export default function DailyHeroCards({
                           {existsInParent && !isWarmupEx && !isPlankHold ? (
                             <input
                               type="number"
-                              step="0.5"
-                              value={item.weight}
+                              inputMode={weightUnit === 'pin' ? 'numeric' : 'decimal'}
+                              step={weightUnit === 'pin' ? '1' : weightUnit === 'lbs' ? '2.5' : '0.5'}
+                              value={item.weight ?? ''}
+                              onFocus={(e) => e.target.select()}
                               onChange={(e) => onUpdateStats(item.uuid, 'weight', e.target.value)}
-                              className="w-16 text-center text-2xl sm:text-3xl font-black text-white bg-transparent border-b border-emerald-500 focus:outline-none"
+                              onBlur={(e) => {
+                                if (e.target.value === '' || parseFloat(e.target.value) < 0) {
+                                  onUpdateStats(item.uuid, 'weight', 0)
+                                }
+                              }}
+                              className="w-16 text-center text-2xl sm:text-3xl font-black text-white bg-transparent border-b border-emerald-500 focus:outline-none focus:border-emerald-300"
                             />
                           ) : (
                             <span className="text-xl sm:text-2xl font-black text-emerald-300 py-1">
@@ -1226,19 +1308,106 @@ export default function DailyHeroCards({
                           {existsInParent && !isWarmupEx && !isPlankHold && (
                             <button
                               type="button"
-                              onClick={() => onUpdateStats(item.uuid, 'weight', weightNum + 2.5)}
-                              className="w-8 h-8 sm:w-9 sm:h-9 text-base font-black bg-emerald-900 rounded-xl hover:bg-emerald-800"
+                              onClick={() => {
+                                const step = weightUnit === 'pin' ? 1 : weightUnit === 'lbs' ? 5 : 2.5
+                                onUpdateStats(item.uuid, 'weight', weightNum + step)
+                              }}
+                              className="w-8 h-8 sm:w-9 sm:h-9 text-base font-black bg-emerald-900 rounded-xl hover:bg-emerald-800 cursor-pointer"
                             >
                               +
                             </button>
                           )}
                         </div>
-                        <span className="text-xs text-emerald-300 block mt-0.5">
+
+                        {/* Quick Stepper Pills */}
+                        {existsInParent && !isWarmupEx && !isPlankHold && (
+                          <div className="flex items-center justify-center gap-1 mt-1 mb-1 flex-wrap">
+                            {weightUnit === 'pin' ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => onUpdateStats(item.uuid, 'weight', Math.max(1, weightNum - 2))}
+                                  className="px-1.5 py-0.5 text-[10px] font-black bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 rounded-md cursor-pointer"
+                                >
+                                  -2
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onUpdateStats(item.uuid, 'weight', weightNum + 1)}
+                                  className="px-1.5 py-0.5 text-[10px] font-black bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 rounded-md cursor-pointer"
+                                >
+                                  +1
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onUpdateStats(item.uuid, 'weight', weightNum + 2)}
+                                  className="px-1.5 py-0.5 text-[10px] font-black bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 rounded-md cursor-pointer"
+                                >
+                                  +2
+                                </button>
+                              </>
+                            ) : weightUnit === 'lbs' ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => onUpdateStats(item.uuid, 'weight', Math.max(0, weightNum - 10))}
+                                  className="px-1.5 py-0.5 text-[10px] font-black bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 rounded-md cursor-pointer"
+                                >
+                                  -10
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onUpdateStats(item.uuid, 'weight', weightNum + 5)}
+                                  className="px-1.5 py-0.5 text-[10px] font-black bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 rounded-md cursor-pointer"
+                                >
+                                  +5
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onUpdateStats(item.uuid, 'weight', weightNum + 10)}
+                                  className="px-1.5 py-0.5 text-[10px] font-black bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 rounded-md cursor-pointer"
+                                >
+                                  +10
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => onUpdateStats(item.uuid, 'weight', Math.max(0, weightNum - 5))}
+                                  className="px-1.5 py-0.5 text-[10px] font-black bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 rounded-md cursor-pointer"
+                                >
+                                  -5
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onUpdateStats(item.uuid, 'weight', weightNum + 2.5)}
+                                  className="px-1.5 py-0.5 text-[10px] font-black bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 rounded-md cursor-pointer"
+                                >
+                                  +2.5
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onUpdateStats(item.uuid, 'weight', weightNum + 5)}
+                                  className="px-1.5 py-0.5 text-[10px] font-black bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 rounded-md cursor-pointer"
+                                >
+                                  +5
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        <span className="text-xs text-emerald-300 block">
                           {isPlankHold
                             ? 'เกร็งค้างต้านแรงโน้มถ่วง'
                             : isWarmupEx
                               ? 'มือเปล่า'
-                              : `แนะนำ ~${effortEval.expectedWorkingWeight} kg`}
+                              : weightUnit === 'pin'
+                                ? `แนะนำ ~เบอร์ ${Math.max(1, Math.round(effortEval.expectedWorkingWeight / 5))}`
+                                : weightUnit === 'lbs'
+                                  ? `แนะนำ ~${Math.round(effortEval.expectedWorkingWeight * 2.20462)} lbs`
+                                  : `แนะนำ ~${effortEval.expectedWorkingWeight} kg`}
                         </span>
                       </div>
                     </div>
@@ -1249,10 +1418,17 @@ export default function DailyHeroCards({
                         <span className="text-xs font-extrabold text-slate-300 block">เวลา</span>
                         <input
                           type="number"
+                          inputMode="numeric"
                           step="1"
-                          value={item.duration}
+                          value={item.duration ?? ''}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => onUpdateStats(item.uuid, 'duration', e.target.value)}
-                          className="w-16 mt-1 text-center text-2xl sm:text-3xl font-black text-sky-400 bg-transparent border-b border-slate-600 focus:outline-none"
+                          onBlur={(e) => {
+                            if (e.target.value === '' || parseFloat(e.target.value) <= 0) {
+                              onUpdateStats(item.uuid, 'duration', 20)
+                            }
+                          }}
+                          className="w-16 mt-1 text-center text-2xl sm:text-3xl font-black text-sky-400 bg-transparent border-b border-slate-600 focus:outline-none focus:border-sky-400"
                         />
                         <span className="text-xs text-slate-400 block mt-0.5">นาที</span>
                       </div>
@@ -1263,10 +1439,17 @@ export default function DailyHeroCards({
                         </span>
                         <input
                           type="number"
+                          inputMode="decimal"
                           step="0.05"
-                          value={item.distance_km}
+                          value={item.distance_km ?? ''}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => onUpdateStats(item.uuid, 'distance_km', e.target.value)}
-                          className="w-20 mt-1 text-center text-2xl sm:text-3xl font-black text-white bg-transparent border-b border-emerald-400 focus:outline-none"
+                          onBlur={(e) => {
+                            if (e.target.value === '' || parseFloat(e.target.value) < 0) {
+                              onUpdateStats(item.uuid, 'distance_km', 0)
+                            }
+                          }}
+                          className="w-20 mt-1 text-center text-2xl sm:text-3xl font-black text-white bg-transparent border-b border-emerald-400 focus:outline-none focus:border-emerald-300"
                         />
                         <span className="text-xs text-emerald-300 block mt-0.5">กม. (Km)</span>
                       </div>
@@ -1275,10 +1458,17 @@ export default function DailyHeroCards({
                         <span className="text-xs font-extrabold text-slate-300 block">ความชัน</span>
                         <input
                           type="number"
+                          inputMode="decimal"
                           step="0.5"
-                          value={item.incline}
+                          value={item.incline ?? ''}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => onUpdateStats(item.uuid, 'incline', e.target.value)}
-                          className="w-16 mt-1 text-center text-2xl sm:text-3xl font-black text-amber-400 bg-transparent border-b border-slate-600 focus:outline-none"
+                          onBlur={(e) => {
+                            if (e.target.value === '' || parseFloat(e.target.value) < 0) {
+                              onUpdateStats(item.uuid, 'incline', 0)
+                            }
+                          }}
+                          className="w-16 mt-1 text-center text-2xl sm:text-3xl font-black text-amber-400 bg-transparent border-b border-slate-600 focus:outline-none focus:border-amber-400"
                         />
                         <span className="text-xs text-slate-400 block mt-0.5">Incline %</span>
                       </div>
@@ -1287,10 +1477,17 @@ export default function DailyHeroCards({
                         <span className="text-xs font-extrabold text-sky-300 block">ความเร็ว</span>
                         <input
                           type="number"
+                          inputMode="decimal"
                           step="0.1"
-                          value={cardioKinematics?.speedKmh ?? item.speed_kmh ?? 3.5}
+                          value={item.speed_kmh ?? cardioKinematics?.speedKmh ?? 3.5}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => onUpdateStats(item.uuid, 'speed_kmh', e.target.value)}
-                          className="w-16 mt-1 text-center text-2xl sm:text-3xl font-black text-white bg-transparent border-b border-sky-500 focus:outline-none"
+                          onBlur={(e) => {
+                            if (e.target.value === '' || parseFloat(e.target.value) <= 0) {
+                              onUpdateStats(item.uuid, 'speed_kmh', 3.5)
+                            }
+                          }}
+                          className="w-16 mt-1 text-center text-2xl sm:text-3xl font-black text-white bg-transparent border-b border-sky-500 focus:outline-none focus:border-sky-300"
                         />
                         <span className="text-xs text-sky-300 block mt-0.5">km/h</span>
                       </div>
@@ -1308,10 +1505,12 @@ export default function DailyHeroCards({
                         <span className="text-xs font-bold text-orange-800">แคลจริง:</span>
                         <input
                           type="number"
+                          inputMode="numeric"
                           placeholder={String(itemKcal)}
                           value={item.custom_kcal ?? ''}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => onUpdateStats(item.uuid, 'custom_kcal', e.target.value)}
-                          className="w-20 px-2.5 py-1.5 text-sm font-black text-center text-orange-950 bg-white border border-orange-300 rounded-xl focus:outline-none"
+                          className="w-20 px-2.5 py-1.5 text-sm font-black text-center text-orange-950 bg-white border border-orange-300 rounded-xl focus:outline-none focus:border-orange-400"
                         />
                         {hasCustomKcal && (
                           <button

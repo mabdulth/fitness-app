@@ -426,15 +426,18 @@ export function classifyExerciseBiomechanics(name = '', muscle = 'Chest') {
   }
 }
 
-export default function ExerciseIllustration({ name = '', muscle, type, size = 'md' }) {
+export default function ExerciseIllustration({ name = '', muscle, type, size = 'md', compactAnimated = false }) {
   const [isAnimating, setIsAnimating] = useState(true)
   const [displayMode, setDisplayMode] = useState('vector')
+
+  const isHeroBanner = size === 'xl'
+  const shouldAnimate = isHeroBanner || size === 'lg' || compactAnimated
 
   const sizeClasses =
     size === 'xl'
       ? 'w-full h-64 sm:h-72 rounded-2xl'
       : size === 'lg'
-        ? 'w-20 h-20 rounded-xl'
+        ? 'w-24 sm:w-28 h-18 sm:h-20 rounded-xl'
         : 'w-14 h-14 rounded-xl'
 
   const colorMap = {
@@ -451,15 +454,14 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
   const bio = classifyExerciseBiomechanics(name, muscle, type)
   const isWarmupPattern = bio.pattern.startsWith('WARMUP_')
   const theme = isWarmupPattern ? colorMap.Warmup : colorMap[muscle] || colorMap.Chest
-  const isHeroBanner = size === 'xl'
 
   return (
     <div
       className={`${sizeClasses} ${
-        isHeroBanner
+        shouldAnimate
           ? `bg-gradient-to-br ${theme.bg} text-white border border-slate-800 shadow-inner`
           : `${theme.lightBg} border`
-      } flex flex-col items-center justify-center p-2.5 shrink-0 relative overflow-hidden select-none`}
+      } flex flex-col items-center justify-center p-1.5 shrink-0 relative overflow-hidden select-none`}
     >
       {/* แถบหัวการ์ดสำหรับโหมด Hero Card (ตัวหนังสือใหญ่ขึ้น ไม่เบียดกัน) */}
       {isHeroBanner ? (
@@ -553,7 +555,7 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
       ) : (
         /* โหมดแผนภาพชีวกลศาสตร์ 2 มุมมอง (Front View & Side View) */
         <svg
-          viewBox={isHeroBanner ? '0 0 320 165' : '0 0 100 100'}
+          viewBox={shouldAnimate ? '0 0 320 165' : '0 0 100 100'}
           className={isHeroBanner ? 'w-full h-full mt-4 mb-3' : 'w-full h-full'}
         >
           <defs>
@@ -562,17 +564,21 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
             </marker>
           </defs>
 
-          {isHeroBanner ? (
+          {shouldAnimate ? (
             <>
-              <line x1="160" y1="26" x2="160" y2="136" stroke="#334155" strokeWidth="1" strokeDasharray="3 3" />
-              <line x1="14" y1="134" x2="306" y2="134" stroke="#475569" strokeWidth="1.5" />
+              {isHeroBanner && (
+                <>
+                  <line x1="160" y1="26" x2="160" y2="136" stroke="#334155" strokeWidth="1" strokeDasharray="3 3" />
+                  <line x1="14" y1="134" x2="306" y2="134" stroke="#475569" strokeWidth="1.5" />
 
-              <text x="80" y="34" textAnchor="middle" className="text-[9px] font-extrabold fill-slate-300 uppercase">
-                1. มุมด้านหน้า (FRONT)
-              </text>
-              <text x="240" y="34" textAnchor="middle" className="text-[9px] font-extrabold fill-sky-300 uppercase">
-                2. มุมด้านข้าง (SIDE)
-              </text>
+                  <text x="80" y="34" textAnchor="middle" className="text-[9px] font-extrabold fill-slate-300 uppercase">
+                    1. มุมด้านหน้า (FRONT)
+                  </text>
+                  <text x="240" y="34" textAnchor="middle" className="text-[9px] font-extrabold fill-sky-300 uppercase">
+                    2. มุมด้านข้าง (SIDE)
+                  </text>
+                </>
+              )}
 
               {/* ===============================================================
                   0A. WARMUP_ARM_CIRCLES (ยืนตรงหมุนไหล่เป็นวงกลม & เหวี่ยงแขนสลับหน้าอก)
