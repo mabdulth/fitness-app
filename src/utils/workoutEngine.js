@@ -219,7 +219,19 @@ export function evaluateTrainingContinuityAndEffort({
     .sort((a, b) => parseLocalISO(b.date) - parseLocalISO(a.date))
 
   const priorMuscleLogs = priorLogs.filter(l => (l.muscle_group || l.muscle) === item.muscle)
-  const priorExactExerciseLogs = priorLogs.filter(l => l.exercise_name === item.name)
+  const cleanItemName = (str) =>
+    String(str || '')
+      .replace(/\[[^\]]+\]/g, '')
+      .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')
+      .replace(/\([^)]+\)/g, '')
+      .trim()
+      .toLowerCase()
+
+  const targetCleanName = cleanItemName(item.name)
+  const priorExactExerciseLogs = priorLogs.filter(l => {
+    const lClean = cleanItemName(l.exercise_name)
+    return lClean === targetCleanName || l.exercise_name === item.name
+  })
 
   const lastAnyWorkoutDate = priorLogs[0]?.date || null
   const lastMuscleWorkoutDate = priorMuscleLogs[0]?.date || lastAnyWorkoutDate
@@ -253,22 +265,36 @@ export function evaluateTrainingContinuityAndEffort({
     }
   }
 
+  // คำนึงถึงเพศ (Gender Factor) และสัดส่วนแรงจริงของดัมเบล
+  const isFemale =
+    profile?.gender === 'Female' ||
+    profile?.gender === 'F' ||
+    profile?.gender === 'female' ||
+    profile?.gender === 'หญิง'
+
+  const isUpper = item.muscle === 'Chest' || item.muscle === 'Back' || item.muscle === 'Shoulders' || item.muscle === 'Arms'
+  const genderFactor = isFemale ? (isUpper ? 0.52 : 0.72) : 1.0
+
   const ratioMap = {
-    Chest: { Barbell: 0.65, Dumbbell: 0.24, Machine: 0.55, Cable: 0.25 },
-    Back: { Barbell: 0.70, Dumbbell: 0.26, Machine: 0.60, Cable: 0.55 },
-    Legs: { Barbell: 0.85, Dumbbell: 0.28, Machine: 1.10, Cable: 0.35 },
-    Shoulders: { Barbell: 0.40, Dumbbell: 0.14, Machine: 0.40, Cable: 0.12 },
-    Arms: { Barbell: 0.30, Dumbbell: 0.14, Machine: 0.28, Cable: 0.25 },
-    Core: { Barbell: 0.20, Dumbbell: 0.15, Machine: 0.35, Cable: 0.30 }
+    Chest: { Barbell: 0.55, Dumbbell: 0.12, Machine: 0.45, Cable: 0.20 },
+    Back: { Barbell: 0.60, Dumbbell: 0.13, Machine: 0.50, Cable: 0.35 },
+    Legs: { Barbell: 0.75, Dumbbell: 0.14, Machine: 0.90, Cable: 0.25 },
+    Shoulders: { Barbell: 0.30, Dumbbell: 0.05, Machine: 0.25, Cable: 0.08 },
+    Arms: { Barbell: 0.25, Dumbbell: 0.07, Machine: 0.22, Cable: 0.18 },
+    Core: { Barbell: 0.15, Dumbbell: 0.08, Machine: 0.25, Cable: 0.20 }
   }
   const groupRatios = ratioMap[item.muscle] || ratioMap.Chest
-  const baseRatio = groupRatios[item.type] || 0.25
+  const baseRatio = groupRatios[item.type] || 0.15
 
-  const profileBaseWeight = userWeight * baseRatio * levelMultiplier * bodyTypeFactor * (1 + maturityBonus)
+  const profileBaseWeight = userWeight * baseRatio * levelMultiplier * bodyTypeFactor * genderFactor * (1 + maturityBonus)
   const lastLoggedWeight = priorExactExerciseLogs[0]?.weight_kg ? parseFloat(priorExactExerciseLogs[0].weight_kg) : 0
 
   const referenceBaseWeight = lastLoggedWeight > 0 ? lastLoggedWeight : profileBaseWeight
-  const expectedWorkingWeight = Math.max(2.5, Math.round((referenceBaseWeight * detrainingFactor) / 2.5) * 2.5)
+  // หากผู้ใช้เคยยกน้ำหนักจริง (เช่น 6.8 kg) ให้ใช้น้ำหนักจริงนั้นเป็นหลักทันที
+  const expectedWorkingWeight =
+    lastLoggedWeight > 0
+      ? Number(lastLoggedWeight.toFixed(1))
+      : Math.max(2, Math.round((referenceBaseWeight * detrainingFactor) * 2) / 2)
 
   const currentSets = Math.max(1, parseInt(item.sets) || 3)
   const currentReps = Math.max(1, parseInt(item.reps) || 10)
@@ -482,9 +508,16 @@ export function personalizeExercisePrescription(
     }
   }
 
+  const isPlankEx =
+    String(exercise.name || '').toLowerCase().includes('plank') ||
+    String(exercise.name || '').includes('แพลงก์')
+
   let targetReps = 10
   let targetRest = 90
-  if (goal === 'Powerlifting') {
+  if (isPlankEx) {
+    targetReps = level === 'Beginner' ? 30 : level === 'Intermediate' ? 45 : 60
+    targetRest = 60
+  } else if (goal === 'Powerlifting') {
     targetReps = 5
     targetRest = 150
   } else if (goal === 'Hypertrophy') {
@@ -506,7 +539,7 @@ export function personalizeExercisePrescription(
   })
 
   const suggestedWeight =
-    exercise.type === 'Bodyweight' || exercise.type === 'Calisthenics'
+    isPlankEx || exercise.type === 'Bodyweight' || exercise.type === 'Calisthenics'
       ? 0
       : readiness.expectedWorkingWeight
 
@@ -520,7 +553,8 @@ export function personalizeExercisePrescription(
     duration: 0,
     incline: 0,
     distance_km: 0,
-    notes: readiness.continuityText
+    is_timed: isPlankEx,
+    notes: isPlankEx ? 'เกร็งกล้ามเนื้อแกนกลางลำตัว (ร่อง 11) หายใจเข้า-ออกสม่ำเสมอ' : readiness.continuityText
   }
 }
 
@@ -1141,6 +1175,10 @@ function computeUser14DayMetrics(profile, allHistoricalLogs = []) {
     l => l && (!l.date || l.date >= cutoffIso)
   )
 
+  const distinctDays14d = new Set(
+    recentLogs.map(l => l.date).filter(Boolean)
+  ).size
+
   const rawStats = recentLogs.reduce(
     (acc, l) => {
       const m = l.muscle_group || l.muscle
@@ -1185,29 +1223,27 @@ function computeUser14DayMetrics(profile, allHistoricalLogs = []) {
     }
   )
 
-  // โบนัสพื้นฐานจากโปรไฟล์ผู้ใช้ (ทำให้คนฟิตระดับต่างกัน หรือแม้ยังไม่ได้คีย์ข้อมูลวันแรก เห็นความแตกต่างของแต่ละอุทยานตามจริง)
+  // ฐานความฟิตตามระดับ (ปรับให้สมจริง ไม่เกิน 1-3 เซ็ต ไม่ทำให้คะแนนพุ่งก่อนฝึกจริง)
   const level = profile?.fitness_level || 'Intermediate'
-  const trainingDays = parseInt(profile?.training_days) || 4
-  const goal = profile?.goal || 'Fat Loss'
 
-  const baseLegSets = (level === 'Advanced' ? 8 : level === 'Intermediate' ? 5 : 3) + Math.floor(trainingDays / 2)
-  const baseBackSets = (level === 'Advanced' ? 6 : level === 'Intermediate' ? 4 : 2) + Math.floor(trainingDays / 3)
-  const baseCoreSets = (level === 'Advanced' ? 5 : level === 'Intermediate' ? 3.5 : 2)
-  const baseCardioMins =
-    (level === 'Advanced' ? 55 : level === 'Intermediate' ? 35 : 20) +
-    (goal === 'Strength & Endurance' || goal === 'Fat Loss' ? 12 : 0)
-  const baseIncline = level === 'Advanced' ? 9.0 : level === 'Intermediate' ? 6.0 : 3.5
+  const baseLegSets = level === 'Advanced' ? 3 : level === 'Intermediate' ? 2 : 1
+  const baseBackSets = level === 'Advanced' ? 2 : level === 'Intermediate' ? 1.5 : 1
+  const baseCoreSets = level === 'Advanced' ? 2 : level === 'Intermediate' ? 1 : 0.5
+  const baseCardioMins = level === 'Advanced' ? 20 : level === 'Intermediate' ? 12 : 5
+  const baseIncline = level === 'Advanced' ? 4.5 : level === 'Intermediate' ? 2.5 : 1.0
 
-  const weeklyEffectiveLegSets = Math.round((rawStats.legSets14d / 1.5) + baseLegSets)
+  // ข้อมูลที่ทำได้จริงเฉลี่ยต่อสัปดาห์ (14 วัน หาร 2) + ฐานความฟิตเล็กน้อย
+  const weeklyEffectiveLegSets = Math.round((rawStats.legSets14d / 2) + baseLegSets)
   const weeklyEffectiveBackSets = Math.round(
-    (((rawStats.setsByMuscle.Back || 0) + (rawStats.setsByMuscle.Shoulders || 0) * 0.5) / 1.5) + baseBackSets
+    (((rawStats.setsByMuscle.Back || 0) + (rawStats.setsByMuscle.Shoulders || 0) * 0.5) / 2) + baseBackSets
   )
-  const weeklyEffectiveCoreSets = Math.round(((rawStats.setsByMuscle.Core || 0) / 1.5) + baseCoreSets)
-  const weeklyEffectiveCardioMins = Math.round((rawStats.cardioMins14d / 1.5) + baseCardioMins)
+  const weeklyEffectiveCoreSets = Math.round(((rawStats.setsByMuscle.Core || 0) / 2) + baseCoreSets)
+  const weeklyEffectiveCardioMins = Math.round((rawStats.cardioMins14d / 2) + baseCardioMins)
   const effectiveMaxIncline = Math.max(rawStats.maxIncline14d, baseIncline)
 
   return {
     ...rawStats,
+    distinctDays14d,
     weeklyEffectiveLegSets,
     weeklyEffectiveBackSets,
     weeklyEffectiveCoreSets,
@@ -1218,15 +1254,15 @@ function computeUser14DayMetrics(profile, allHistoricalLogs = []) {
 
 function evaluateSingleParkWithMetrics(park, userMetrics) {
   const req = park.reqSets || {
-    Legs: Math.max(4, Math.round(park.distanceKm * 0.9 + park.avgInclinePct * 0.8)),
-    CardioMins: Math.max(25, Math.round(park.distanceKm * 6 + park.avgInclinePct * 4)),
-    Back: Math.max(3, Math.round(park.distanceKm * 0.7)),
-    Core: Math.max(3, Math.round(park.avgInclinePct * 0.6))
+    Legs: Math.max(6, Math.round(park.distanceKm * 1.1 + park.avgInclinePct * 0.9)),
+    CardioMins: Math.max(30, Math.round(park.distanceKm * 7 + park.avgInclinePct * 5)),
+    Back: Math.max(4, Math.round(park.distanceKm * 0.8)),
+    Core: Math.max(3, Math.round(park.avgInclinePct * 0.7))
   }
 
   const legPct = Math.min(100, Math.round((userMetrics.weeklyEffectiveLegSets / req.Legs) * 100))
 
-  // คะแนนความอึดปอด คิดจากทั้งเวลาคาร์ดิโอและความชันที่เคยซ้อมเทียบกับความชันจริงของภูเขา
+  // คะแนนความอึดปอด คิดจากเวลาคาร์ดิโอและความชันที่เคยซ้อมเทียบกับความชันจริงของภูเขา
   const durationRatio = userMetrics.weeklyEffectiveCardioMins / req.CardioMins
   const inclineRatio = Math.min(1.15, userMetrics.effectiveMaxIncline / Math.max(3, park.avgInclinePct))
   const cardioPct = Math.min(100, Math.round((durationRatio * 0.7 + inclineRatio * 0.3) * 100))
@@ -1236,10 +1272,29 @@ function evaluateSingleParkWithMetrics(park, userMetrics) {
 
   const packCoreScore = Math.min(100, Math.round(backPct * 0.55 + corePct * 0.45))
 
-  // น้ำหนักคะแนนรวม: ขา 40% + ปอดเดินชัน 35% + หลัง/แกนกลางแบกเป้ 25%
+  // คะแนนพื้นฐานตามปริมาณงานที่ทำจริง
+  const rawVolumeScore = legPct * 0.40 + cardioPct * 0.35 + packCoreScore * 0.25
+
+  // ตัวคูณความสม่ำเสมอตามจำนวนวันที่ฝึกจริงใน 14 วันล่าสุด (Distinct Days)
+  // 0 วัน = 0.35, 1-2 วัน = 0.52, 3-4 วัน = 0.72, 5-6 วัน = 0.88, 7+ วัน = 1.0
+  const days = userMetrics.distinctDays14d || 0
+  const consistencyFactor =
+    days >= 7 ? 1.0 :
+    days >= 5 ? 0.88 :
+    days >= 3 ? 0.72 :
+    days >= 1 ? 0.52 : 0.35
+
+  // ตัวคูณความยากของเส้นทาง (Advanced เส้นทางชันยาว ต้องมีวันที่ฝึกสม่ำเสมอเพื่อความปลอดภัย)
+  const difficultyRequirement =
+    park.difficulty === 'Advanced' ? 0.80 :
+    park.difficulty === 'Intermediate' ? 0.90 : 1.0
+
+  const effectiveConsistency = Math.min(1.0, consistencyFactor / difficultyRequirement)
+
+  // ความพร้อมรวม (%)
   const overallReadyPct = Math.min(
     100,
-    Math.max(12, Math.round(legPct * 0.40 + cardioPct * 0.35 + packCoreScore * 0.25))
+    Math.max(8, Math.round(rawVolumeScore * effectiveConsistency))
   )
   const remainingGapPct = Math.max(0, 100 - overallReadyPct)
 

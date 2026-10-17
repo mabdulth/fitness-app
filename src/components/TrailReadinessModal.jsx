@@ -2,9 +2,7 @@ import { useState, useEffect } from 'react'
 import {
   evaluateTrailExpeditionReadiness,
   buildTrailWorkoutForPark,
-  THAI_FOREST_EXPEDITIONS_30
 } from '../utils/workoutEngine'
-import ForestryAcademicHub from './ForestryAcademicHub'
 
 // ============================================================================
 // WIKIPEDIA REAL PARK PHOTO RESOLVER (ดึงภาพสถานที่จริงจากสารานุกรม Wikipedia)
@@ -291,12 +289,12 @@ export default function TrailReadinessModal({
   inlineMode = false,
   isEmbedded = false
 }) {
-  const [mainTab, setMainTab] = useState('readiness')
   const [regionFilter, setRegionFilter] = useState('All')
   const [difficultyFilter, setDifficultyFilter] = useState('All')
   // ตัวกรองโหมดพาหนะ: 'All' | 'sedan' | '4x4' | 'boat_walk'
   const [vehicleFilter, setVehicleFilter] = useState('All')
   const [selectedParkId, setSelectedParkId] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   if (isOpen === false) return null
 
@@ -346,13 +344,22 @@ export default function TrailReadinessModal({
           : regStr.includes(regionFilter))
     const matchDiff = difficultyFilter === 'All' || p.difficulty === difficultyFilter
     const matchVehicle = vehicleFilter === 'All' || p.vehicleAccess === vehicleFilter
-    return matchRegion && matchDiff && matchVehicle
+
+    const q = searchQuery.trim().toLowerCase()
+    const matchQuery =
+      !q ||
+      String(p.name || '').toLowerCase().includes(q) ||
+      String(p.province || '').toLowerCase().includes(q) ||
+      String(p.region || '').toLowerCase().includes(q) ||
+      String(p.difficulty || '').toLowerCase().includes(q)
+
+    return matchRegion && matchDiff && matchVehicle && matchQuery
   })
 
   const activePark =
+    safeParkList.find(p => p.id === selectedParkId) ||
     filteredParks.find(p => p.id === selectedParkId) ||
     filteredParks[0] ||
-    safeParkList.find(p => p.id === selectedParkId) ||
     safeParkList[0] ||
     null
 
@@ -405,36 +412,11 @@ export default function TrailReadinessModal({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex p-1 bg-slate-900 border border-emerald-800/60 rounded-2xl">
-            <button
-              type="button"
-              onClick={() => setMainTab('readiness')}
-              className={`px-3.5 py-1.5 text-xs font-extrabold rounded-xl transition ${
-                mainTab === 'readiness'
-                  ? 'bg-emerald-500 text-slate-950 shadow-xs'
-                  : 'text-slate-300 hover:text-white'
-              }`}
-            >
-              🥾 1. ประเมินความพร้อม & วิธีเดินทาง (30 แห่ง)
-            </button>
-            <button
-              type="button"
-              onClick={() => setMainTab('academic')}
-              className={`px-3.5 py-1.5 text-xs font-extrabold rounded-xl transition ${
-                mainTab === 'academic'
-                  ? 'bg-amber-400 text-slate-950 shadow-xs'
-                  : 'text-slate-300 hover:text-white'
-              }`}
-            >
-              🌿 2. คลังรุกขวิทยา & สัตว์ป่า (ภาพจริง Wikipedia)
-            </button>
-          </div>
-
           {typeof onClose === 'function' && (
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-1.5 text-sm font-bold text-slate-300 bg-slate-900 border border-slate-700 rounded-xl hover:bg-rose-600 hover:text-white transition"
+              className="px-3.5 py-1.5 text-sm font-bold text-slate-300 bg-slate-900 border border-slate-700 rounded-xl hover:bg-rose-600 hover:text-white transition cursor-pointer"
             >
               ✕ ปิด
             </button>
@@ -444,10 +426,73 @@ export default function TrailReadinessModal({
 
       {/* Body Content */}
       <div className="flex-1 p-6 overflow-y-auto space-y-6">
-        {mainTab === 'academic' ? (
-          <ForestryAcademicHub />
-        ) : (
-          <>
+            {/* แถบค้นหาและดรอปดาวน์เลือกอุทยาน 30 แห่งด้านบนแบบรวดเร็ว */}
+            <div className="p-4 sm:p-5 bg-slate-900/95 border-2 border-emerald-500/70 rounded-2xl shadow-xl space-y-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                {/* ดรอปดาวน์เลือกอุทยาน 30 แห่ง */}
+                <div className="flex-1">
+                  <label className="block text-xs font-black text-emerald-300 mb-1.5 flex items-center gap-1.5">
+                    <span>🏔️ ดรอปดาวน์เลือกอุทยานทันที (ทั้งหมด {safeParkList.length} แห่ง):</span>
+                  </label>
+                  <select
+                    value={activePark?.id || ''}
+                    onChange={(e) => {
+                      setSelectedParkId(e.target.value)
+                    }}
+                    className="w-full px-3.5 py-2.5 text-xs sm:text-sm font-black text-white bg-slate-950 border-2 border-emerald-500/80 rounded-xl focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 outline-none cursor-pointer"
+                  >
+                    <option value="" disabled>-- คลิกเพื่อเลือกอุทยานที่ต้องการดู --</option>
+                    {safeParkList.map((p, idx) => (
+                      <option key={p.id} value={p.id} className="bg-slate-950 text-white py-1">
+                        {idx + 1}. {p.name} ({p.province}) • {p.difficulty} • ความพร้อม {p.overallScore}%
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* ช่องพิมพ์ค้นหาอุทยาน */}
+                <div className="sm:w-80">
+                  <label className="block text-xs font-black text-slate-300 mb-1.5 flex items-center gap-1.5">
+                    <span>🔍 ค้นหา (ชื่ออุทยาน / ยอดเขา / จังหวัด):</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="เช่น ภูกระดึง, เชียงดาว, กาญจนบุรี..."
+                      className="w-full pl-3.5 pr-8 py-2.5 text-xs sm:text-sm font-bold text-white bg-slate-950 border border-slate-700 rounded-xl focus:border-emerald-400 outline-none"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs font-black cursor-pointer"
+                        title="ล้างคำค้นหา"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {searchQuery.trim() && (
+                <div className="flex items-center justify-between text-xs text-amber-300 font-bold pt-1 border-t border-slate-800">
+                  <span>
+                    🔎 ผลการค้นหา &quot;{searchQuery}&quot;: พบ {filteredParks.length} แห่ง (กดเลือกด้านล่างหรือจากดรอปดาวน์ได้)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="text-slate-400 hover:text-white underline text-[11px]"
+                  >
+                    ล้างการค้นหา
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* แถบสรุปสถิติการซ้อม 14 วันล่าสุด */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="p-4 bg-slate-900/90 border border-emerald-800/50 rounded-2xl">
@@ -781,8 +826,6 @@ export default function TrailReadinessModal({
                 })}
               </div>
             )}
-          </>
-        )}
       </div>
     </div>
   )

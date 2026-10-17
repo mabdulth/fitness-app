@@ -69,6 +69,8 @@ export default function TrainerPanel() {
   const [assignDate, setAssignDate] = useState(todayStr)
   const [assignedExercises, setAssignedExercises] = useState([])
   const [activeWorkoutId, setActiveWorkoutId] = useState(null)
+  const [isTraineeRestDay, setIsTraineeRestDay] = useState(false)
+  const [traineeRestNote, setTraineeRestNote] = useState('')
 
   // State สำหรับสตูดิโอสร้างโปรแกรมออกกำลังกายของเทรนเนอร์/มาสเตอร์
   const [customPrograms, setCustomPrograms] = useState([])
@@ -195,7 +197,7 @@ export default function TrainerPanel() {
   const loadTraineeWorkoutForDate = async (traineeId, dateStr) => {
     const { data: workouts } = await supabase
       .from('workouts')
-      .select('id, date')
+      .select('id, date, status')
       .eq('user_id', traineeId)
       .eq('date', dateStr)
       .limit(1)
@@ -209,34 +211,56 @@ export default function TrainerPanel() {
         .select('*')
         .eq('workout_id', wId)
 
-      if (logs) {
-        setAssignedExercises(
-          logs.map(l => {
-            const dur = parseFloat(l.duration_mins) || 25
-            const dist = parseFloat(l.distance_km) || 0
-            const spd = dur > 0 && dist > 0 ? Number((dist / (dur / 60)).toFixed(2)) : 3.5
+      if (logs && logs.length > 0) {
+        const isRest =
+          workouts[0].status === 'rest_day' ||
+          (logs.length === 1 && (
+            logs[0].muscle_group === 'Rest' ||
+            String(logs[0].exercise_name || '').includes('วันพักฟื้น') ||
+            String(logs[0].notes || '').includes('วันพักฟื้นร่างกาย')
+          ))
 
-            return {
-              uuid: crypto.randomUUID(),
-              name: l.exercise_name,
-              muscle: l.muscle_group,
-              sub_muscle: l.sub_muscle || l.muscle_group,
-              type: l.equipment_type || 'Dumbbell',
-              sets: l.sets || 3,
-              reps: l.reps || 10,
-              weight: l.weight_kg || 0,
-              rest_sec: l.rest_sec || 90,
-              duration: dur,
-              incline: l.incline ?? 0,
-              distance_km: dist,
-              speed_kmh: spd,
-              notes: l.notes || ''
-            }
-          })
-        )
+        if (isRest) {
+          setIsTraineeRestDay(true)
+          setTraineeRestNote(logs[0].notes || '')
+          setAssignedExercises([])
+        } else {
+          setIsTraineeRestDay(false)
+          setTraineeRestNote('')
+          setAssignedExercises(
+            logs.map(l => {
+              const dur = parseFloat(l.duration_mins) || 25
+              const dist = parseFloat(l.distance_km) || 0
+              const spd = dur > 0 && dist > 0 ? Number((dist / (dur / 60)).toFixed(2)) : 3.5
+
+              return {
+                uuid: crypto.randomUUID(),
+                name: l.exercise_name,
+                muscle: l.muscle_group,
+                sub_muscle: l.sub_muscle || l.muscle_group,
+                type: l.equipment_type || 'Dumbbell',
+                sets: l.sets || 3,
+                reps: l.reps || 10,
+                weight: l.weight_kg || 0,
+                rest_sec: l.rest_sec || 90,
+                duration: dur,
+                incline: l.incline ?? 0,
+                distance_km: dist,
+                speed_kmh: spd,
+                notes: l.notes || ''
+              }
+            })
+          )
+        }
+      } else {
+        setIsTraineeRestDay(false)
+        setTraineeRestNote('')
+        setAssignedExercises([])
       }
     } else {
       setActiveWorkoutId(null)
+      setIsTraineeRestDay(false)
+      setTraineeRestNote('')
       setAssignedExercises([])
     }
   }
@@ -244,6 +268,8 @@ export default function TrainerPanel() {
   const handleSelectTrainee = async (client) => {
     setSelectedTrainee(client)
     syncTraineeIdentityInputs(client)
+    setIsTraineeRestDay(false)
+    setTraineeRestNote('')
     await Promise.all([
       fetchTraineeFullTelemetry(client.id),
       loadTraineeWorkoutForDate(client.id, assignDate)
@@ -393,10 +419,14 @@ export default function TrainerPanel() {
       speed_kmh: defaultSpeed,
       notes: `มอบหมายโดย ${trainerDisplayName} (${trainerTeam})`
     }
+    setIsTraineeRestDay(false)
+    setTraineeRestNote('')
     setAssignedExercises(prev => [...prev, item])
   }
 
   const handleLoadProgramTemplate = (templateItems) => {
+    setIsTraineeRestDay(false)
+    setTraineeRestNote('')
     const formatted = templateItems.map(item => {
       const dur = parseFloat(item.duration) || 25
       const inc = parseFloat(item.incline) || 0
@@ -471,6 +501,7 @@ export default function TrainerPanel() {
         wId = newW.id
         setActiveWorkoutId(wId)
       } else {
+        await supabase.from('workouts').update({ status: 'assigned_by_trainer' }).eq('id', wId)
         await supabase.from('workout_logs').delete().eq('workout_id', wId)
       }
 
@@ -505,10 +536,123 @@ export default function TrainerPanel() {
       const { error: logErr } = await supabase.from('workout_logs').insert(payload)
       if (logErr) throw logErr
 
+      setIsTraineeRestDay(false)
+      setTraineeRestNote('')
       await fetchTraineeFullTelemetry(selectedTrainee.id)
       alert(`ส่งตารางฝึกประจำวันที่ ${assignDate} ให้ "${selectedTrainee.display_name || selectedTrainee.email}" สำเร็จ!`)
     } catch (err) {
       alert('เกิดข้อผิดพลาด: ' + err.message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // มอบหมายให้วันที่เลือกเป็นวันพักฟื้นร่างกาย (Rest Day) ให้ลูกเทรน
+  const handleSetTraineeRestDay = async (customNote = '') => {
+    if (!selectedTrainee) return
+    setIsSaving(true)
+
+    try {
+      let wId = activeWorkoutId
+      if (!wId) {
+        const { data: newW, error: wErr } = await supabase
+          .from('workouts')
+          .insert([{
+            user_id: selectedTrainee.id,
+            date: assignDate,
+            status: 'rest_day'
+          }])
+          .select()
+          .single()
+
+        if (wErr) throw wErr
+        wId = newW.id
+        setActiveWorkoutId(wId)
+      } else {
+        await supabase.from('workouts').update({ status: 'rest_day' }).eq('id', wId)
+        await supabase.from('workout_logs').delete().eq('workout_id', wId)
+      }
+
+      const trainerName = myProfile?.display_name || 'Trainer'
+      const trainerTeam = myProfile?.team_name || 'ทีมขนุน'
+      const finalNote =
+        (typeof customNote === 'string' && customNote.trim()) ||
+        traineeRestNote.trim() ||
+        `[โปรแกรม: 🛌 วันพักฟื้นร่างกาย (Rest Day)] มอบหมายโดย ${trainerName} (${trainerTeam}) • พักฟื้นกล้ามเนื้อและระบบประสาท`
+
+      const restLogPayload = [
+        {
+          workout_id: wId,
+          exercise_name: '🛌 วันพักฟื้นและซ่อมแซมกล้ามเนื้อ (Active Recovery & Rest Day)',
+          muscle_group: 'Rest',
+          sub_muscle: 'Full Body Recovery & Sleep',
+          equipment_type: 'Bodyweight',
+          sets: 1,
+          reps: 1,
+          weight_kg: 0,
+          rpe: 5.0,
+          rest_sec: 0,
+          duration_mins: 15,
+          incline: 0,
+          distance_km: 0,
+          kcal_burned: 50,
+          notes: finalNote
+        }
+      ]
+
+      const { error: logErr } = await supabase.from('workout_logs').insert(restLogPayload)
+      if (logErr) throw logErr
+
+      setIsTraineeRestDay(true)
+      setTraineeRestNote(finalNote)
+      setAssignedExercises([])
+      await fetchTraineeFullTelemetry(selectedTrainee.id)
+      alert(`บันทึกวันที่ ${assignDate} ของ "${selectedTrainee.display_name || selectedTrainee.email}" เป็น "🛌 วันพักฟื้นร่างกาย" เรียบร้อยแล้ว!`)
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการบันทึกวันพัก: ' + err.message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // ยกเลิกวันพัก เพื่อกลับมาจัดตารางฝึกปกติ
+  const handleCancelRestDay = async () => {
+    if (!selectedTrainee) return
+    setIsSaving(true)
+    try {
+      if (activeWorkoutId) {
+        await supabase.from('workout_logs').delete().eq('workout_id', activeWorkoutId)
+        await supabase.from('workouts').delete().eq('id', activeWorkoutId)
+        setActiveWorkoutId(null)
+      }
+      setIsTraineeRestDay(false)
+      setTraineeRestNote('')
+      setAssignedExercises([])
+      await fetchTraineeFullTelemetry(selectedTrainee.id)
+      alert(`ยกเลิกวันพักของวันที่ ${assignDate} เรียบร้อยแล้ว คุณสามารถจัดตารางฝึกใหม่ได้ทันที`)
+    } catch (err) {
+      alert('เกิดข้อผิดพลาด: ' + err.message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // ลบตารางหรือประวัติทั้งหมดของวันนั้น
+  const handleDeleteTraineeSchedule = async () => {
+    if (!selectedTrainee || !activeWorkoutId) return
+    if (!window.confirm(`ต้องการลบตารางและประวัติการฝึกของวันที่ ${assignDate} ของ "${selectedTrainee.display_name || selectedTrainee.email}" ทั้งหมดใช่หรือไม่?`)) return
+    setIsSaving(true)
+    try {
+      await supabase.from('workout_logs').delete().eq('workout_id', activeWorkoutId)
+      await supabase.from('workouts').delete().eq('id', activeWorkoutId)
+      setActiveWorkoutId(null)
+      setIsTraineeRestDay(false)
+      setTraineeRestNote('')
+      setAssignedExercises([])
+      await fetchTraineeFullTelemetry(selectedTrainee.id)
+      alert(`ลบตารางของวันที่ ${assignDate} เรียบร้อยแล้ว`)
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการลบ: ' + err.message)
     } finally {
       setIsSaving(false)
     }
@@ -721,6 +865,83 @@ export default function TrainerPanel() {
   const lastWorkoutDate = sortedTraineeDates[0] || null
   const daysSinceLast = lastWorkoutDate ? calcDaysBetweenISO(lastWorkoutDate, todayStr) : null
 
+  // คำนวณคำขอเข้าร่วมทีมที่รอการอนุมัติ (Pending Team Join Requests)
+  const pendingRequests = trainees.filter(t => {
+    const req = t.schedule_overrides?._team_request
+    if (!req || req.status !== 'pending') return false
+    // Master เห็นคำขอทั้งหมด; Trainer เห็นคำขอของทีมตนเอง
+    if (myRole === 'master') return true
+    const myTeam = myProfile?.team_name || 'ทีมขนุน'
+    return req.team_name === myTeam
+  })
+
+  const handleApproveJoinRequest = async (trainee) => {
+    const req = trainee.schedule_overrides?._team_request
+    if (!req) return
+
+    const confirmApprove = window.confirm(`คุณต้องการอนุมัติให้ "${trainee.display_name || trainee.email}" เข้าร่วมทีม "${req.team_name}" ใช่หรือไม่?`)
+    if (!confirmApprove) return
+
+    const currentOverrides = trainee.schedule_overrides || {}
+    const updatedOverrides = {
+      ...currentOverrides,
+      _team_request: {
+        ...req,
+        status: 'approved',
+        approved_at: new Date().toISOString()
+      }
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        team_name: req.team_name,
+        team_color: req.team_color || myProfile?.team_color || 'emerald',
+        team_icon: req.team_icon || myProfile?.team_icon || '🌲⚡',
+        schedule_overrides: updatedOverrides
+      })
+      .eq('id', trainee.id)
+
+    if (!error) {
+      alert(`อนุมัติให้ "${trainee.display_name || trainee.email}" เข้าร่วมทีม "${req.team_name}" สำเร็จ!`)
+      await verifyAccessAndFetchProfiles(currentUser.id)
+    } else {
+      alert('เกิดข้อผิดพลาดในการอนุมัติ: ' + error.message)
+    }
+  }
+
+  const handleRejectJoinRequest = async (trainee) => {
+    const req = trainee.schedule_overrides?._team_request
+    if (!req) return
+
+    const confirmReject = window.confirm(`คุณต้องการปฏิเสธคำขอเข้าร่วมทีมของ "${trainee.display_name || trainee.email}" ใช่หรือไม่?`)
+    if (!confirmReject) return
+
+    const currentOverrides = trainee.schedule_overrides || {}
+    const updatedOverrides = {
+      ...currentOverrides,
+      _team_request: {
+        ...req,
+        status: 'rejected',
+        rejected_at: new Date().toISOString()
+      }
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        schedule_overrides: updatedOverrides
+      })
+      .eq('id', trainee.id)
+
+    if (!error) {
+      alert('ปฏิเสธคำขอเรียบร้อยแล้ว')
+      await verifyAccessAndFetchProfiles(currentUser.id)
+    } else {
+      alert('เกิดข้อผิดพลาด: ' + error.message)
+    }
+  }
+
   return (
     <div className="min-h-screen pb-14 bg-stone-100 text-slate-800">
       {/* Top Bar */}
@@ -763,6 +984,59 @@ export default function TrainerPanel() {
 
       <div className="grid grid-cols-1 gap-6 px-6 pt-6 mx-auto max-w-7xl lg:grid-cols-12">
         
+        {/* แถบแจ้งเตือนคำขอเข้าร่วมทีมที่รอการอนุมัติ (Team Join Requests Alert) */}
+        {pendingRequests.length > 0 && (
+          <div className="lg:col-span-12 p-4 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white rounded-3xl shadow-md space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🔔</span>
+                <h3 className="text-sm font-black">
+                  มีคำขอเข้าร่วมทีมที่รอการตอบรับจากคุณ ({pendingRequests.length} รายการ)
+                </h3>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-950/40 rounded-md">
+                Pending Approval
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {pendingRequests.map(t => {
+                const req = t.schedule_overrides?._team_request
+                return (
+                  <div key={t.id} className="p-3 bg-white text-slate-800 rounded-2xl shadow-xs flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-black text-slate-900">{t.display_name || t.email}</div>
+                      <div className="text-[11px] text-amber-800 font-bold mt-0.5">
+                        ขอเข้า: &quot;{req.team_name} {req.team_icon}&quot;
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        {t.weight_kg}kg • {t.body_type} • {req.requested_at}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleApproveJoinRequest(t)}
+                        className="px-3 py-1.5 text-[11px] font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs transition"
+                      >
+                        ✓ อนุมัติ
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRejectJoinRequest(t)}
+                        className="px-3 py-1 text-[11px] font-bold text-slate-500 hover:text-rose-700 rounded-lg transition"
+                      >
+                        ✕ ปฏิเสธ
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* LEFT COLUMN (4 Cols): รายชื่อลูกเทรน + ตัวกรองตามทีม */}
         <div className="p-5 bg-white border border-slate-200 rounded-3xl shadow-sm lg:col-span-4 h-fit space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1106,78 +1380,247 @@ export default function TrainerPanel() {
                         onChange={(e) => handleDateChange(e.target.value)}
                         className="px-3 py-1.5 text-xs font-bold border border-slate-300 rounded-xl"
                       />
+                      {isTraineeRestDay && (
+                        <span className="px-2.5 py-1 text-xs font-black text-amber-950 bg-amber-300 border border-amber-400 rounded-lg">
+                          🛌 วันพักฟื้น
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        onClick={() => setIsPresetModalOpen(true)}
-                        className="px-3.5 py-2 text-xs font-extrabold text-pink-800 bg-pink-50 border border-pink-300 rounded-xl hover:bg-pink-100"
+                        onClick={() => {
+                          setIsTraineeRestDay(false)
+                          setIsPresetModalOpen(true)
+                        }}
+                        className="px-3.5 py-2 text-xs font-extrabold text-pink-800 bg-pink-50 border border-pink-300 rounded-xl hover:bg-pink-100 transition"
                       >
                         🔥 เลือกโปรแกรมพิเศษ / 30 อุทยาน / ฮีโร่
                       </button>
                       <button
                         type="button"
-                        onClick={() => setIsExerciseModalOpen(true)}
-                        className="px-3.5 py-2 text-xs font-bold text-white bg-slate-900 rounded-xl hover:bg-slate-800"
+                        onClick={() => {
+                          setIsTraineeRestDay(false)
+                          setIsExerciseModalOpen(true)
+                        }}
+                        className="px-3.5 py-2 text-xs font-bold text-white bg-slate-900 rounded-xl hover:bg-slate-800 transition"
                       >
                         + เพิ่มท่าฝึกทีละท่า
                       </button>
-                      {assignedExercises.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isTraineeRestDay) {
+                            handleCancelRestDay()
+                          } else {
+                            if (assignedExercises.length > 0) {
+                              if (!window.confirm(`มีท่าฝึกที่จัดไว้แล้ว ${assignedExercises.length} ท่า ต้องการเปลี่ยนวันที่ ${assignDate} เป็น "วันพักฟื้น" (ลูกเทรนไม่ได้เล่น) ใช่หรือไม่?`)) return
+                            }
+                            handleSetTraineeRestDay()
+                          }
+                        }}
+                        disabled={isSaving}
+                        className={`px-3.5 py-2 text-xs font-black rounded-xl border transition cursor-pointer ${
+                          isTraineeRestDay
+                            ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-sm hover:bg-amber-300'
+                            : 'bg-amber-50 text-amber-950 border-amber-300 hover:bg-amber-100'
+                        }`}
+                        title="กำหนดให้เป็นวันพักผ่อน หรือเมื่อลูกทีมไม่ได้เล่นในวันนั้น"
+                      >
+                        {isTraineeRestDay ? '✓ วันนี้เป็นวันพัก (คลิกเพื่อยกเลิก)' : '🛌 ตั้งเป็นวันพัก (ลูกทีมไม่ได้เล่น)'}
+                      </button>
+                      {assignedExercises.length > 0 && !isTraineeRestDay && (
                         <button
                           type="button"
                           onClick={handleSaveTraineeSchedule}
                           disabled={isSaving}
-                          className="px-5 py-2 text-xs font-extrabold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700"
+                          className="px-5 py-2 text-xs font-extrabold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 shadow-sm transition"
                         >
                           {isSaving ? 'กำลังส่งข้อมูล...' : '💾 บันทึกตารางส่งให้ลูกเทรน'}
+                        </button>
+                      )}
+                      {activeWorkoutId && (
+                        <button
+                          type="button"
+                          onClick={handleDeleteTraineeSchedule}
+                          disabled={isSaving}
+                          className="px-3 py-2 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-xl hover:bg-rose-100 transition"
+                          title="ลบตารางและประวัติของวันนี้ออกทั้งหมด"
+                        >
+                          🗑️ ลบตารางวันนี้
                         </button>
                       )}
                     </div>
                   </div>
 
-                  {/* แถบสรุปรวมผลลัพธ์ของตารางฝึกที่จัดให้ลูกเทรน: ระยะเวลา, พลังงานที่เผาผลาญ, ไขมันที่ลด, ปริมาณงาน */}
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 p-4 bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white rounded-2xl border border-emerald-800/60 shadow-xs">
-                    <div>
-                      <span className="text-[10px] font-bold text-emerald-300 uppercase">⏱️ ระยะเวลาออกกำลังกาย</span>
-                      <div className="text-xl font-black text-white mt-0.5">
-                        {assignedSessionMetrics.totalDurationMins} <span className="text-xs font-normal text-slate-300">นาที</span>
-                      </div>
-                      <p className="text-[10px] text-slate-400">รวมเวลาฝึกและพักเซ็ต</p>
-                    </div>
+                  {/* หากวันนั้นถูกกำหนดเป็นวันพักฟื้นร่างกาย แสดงการ์ดวันพักฟื้นสำหรับลูกเทรน */}
+                  {isTraineeRestDay ? (
+                    <div className="p-6 bg-gradient-to-br from-amber-950/85 via-slate-900 to-stone-950 border-2 border-amber-400/80 rounded-3xl shadow-xl text-white space-y-5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-amber-500/30">
+                        <div className="flex items-center gap-3.5">
+                          <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-400/20 border border-amber-400/50 text-3xl shrink-0">
+                            🛌
+                          </div>
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="px-2.5 py-0.5 text-[10px] font-black text-slate-950 bg-amber-400 rounded">
+                                TRAINEE REST DAY
+                              </span>
+                              <span className="text-xs text-amber-200 font-bold">
+                                วันที่ {assignDate}
+                              </span>
+                            </div>
+                            <h3 className="text-lg sm:text-xl font-black text-white mt-1">
+                              🛌 วันพักฟื้นและซ่อมแซมกล้ามเนื้อ (Active Recovery & Rest Day)
+                            </h3>
+                            <p className="text-xs text-slate-300 mt-0.5">
+                              ลูกเทรน ({selectedTrainee?.display_name || selectedTrainee?.email}) ไม่ได้เล่นในวันนี้ หรือเทรนเนอร์กำหนดให้พักฟื้น
+                            </p>
+                          </div>
+                        </div>
 
-                    <div>
-                      <span className="text-[10px] font-bold text-orange-300 uppercase">🔥 พลังงานที่เผาผลาญ</span>
-                      <div className="text-xl font-black text-orange-400 mt-0.5">
-                        {assignedSessionMetrics.totalCalories.toLocaleString()} <span className="text-xs font-normal text-slate-300">kcal</span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleCancelRestDay}
+                            disabled={isSaving}
+                            className="px-4 py-2 text-xs font-bold text-slate-200 bg-slate-800 border border-slate-700 rounded-xl hover:bg-slate-700 transition"
+                          >
+                            🔄 ยกเลิกวันพัก / จัดตารางใหม่
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSetTraineeRestDay(traineeRestNote)}
+                            disabled={isSaving}
+                            className="px-4 py-2 text-xs font-black text-slate-950 bg-amber-400 rounded-xl hover:bg-amber-300 shadow-md transition"
+                          >
+                            {isSaving ? 'กำลังบันทึก...' : '💾 อัปเดตโน้ตวันพัก'}
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-[10px] text-slate-400">คำนวณตาม นน. {selectedTrainee?.weight_kg || 70} kg</p>
-                    </div>
 
-                    <div>
-                      <span className="text-[10px] font-bold text-amber-300 uppercase">💧 ไขมันที่ลดลงประเมิน</span>
-                      <div className="text-xl font-black text-amber-300 mt-0.5">
-                        ~{assignedEstimatedFatLossGrams} <span className="text-xs font-normal text-slate-300">กรัม</span>
+                      {/* การ์ดคำแนะนำ 3 ด้านในวันพักฟื้น */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="p-3.5 bg-slate-950/70 border border-amber-500/20 rounded-2xl">
+                          <span className="text-xs font-extrabold text-amber-300">💧 การดื่มน้ำ & เกลือแร่</span>
+                          <p className="text-[11px] text-slate-300 mt-1">
+                            ดื่มน้ำเปล่า 2.5 - 3 ลิตรเพื่อขับกรดแลกติกและลำเลียงสารอาหารไปซ่อมแซมเส้นใยกล้ามเนื้อ
+                          </p>
+                        </div>
+                        <div className="p-3.5 bg-slate-950/70 border border-amber-500/20 rounded-2xl">
+                          <span className="text-xs font-extrabold text-emerald-300">😴 การนอนหลับพักผ่อน</span>
+                          <p className="text-[11px] text-slate-300 mt-1">
+                            หลับลึก 7.5 - 9 ชั่วโมง Growth Hormone จะหลั่งสูงสุดช่วง 23:00 - 02:00 น.
+                          </p>
+                        </div>
+                        <div className="p-3.5 bg-slate-950/70 border border-amber-500/20 rounded-2xl">
+                          <span className="text-xs font-extrabold text-sky-300">🧘 การฟื้นฟูเชิงรุก (Active)</span>
+                          <p className="text-[11px] text-slate-300 mt-1">
+                            เดินเล่นเบาๆ หรือยืดเหยียดโยคะ 10-15 นาทีเพื่อกระตุ้นการไหลเวียนโลหิตโดยไม่สะสมความล้า
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-[10px] text-slate-400">สลายไขมัน (7.7 kcal = 1g)</p>
-                    </div>
 
-                    <div>
-                      <span className="text-[10px] font-bold text-sky-300 uppercase">🏋️‍♂️ ปริมาณงานรวม (Volume)</span>
-                      <div className="text-xl font-black text-sky-300 mt-0.5">
-                        {assignedSessionMetrics.totalVolumeKg.toLocaleString()} <span className="text-xs font-normal text-slate-300">kg</span>
+                      {/* ช่องใส่ข้อความแนะนำจากเทรนเนอร์ */}
+                      <div className="space-y-1.5 pt-2">
+                        <label className="block text-xs font-extrabold text-amber-300">
+                          📝 ข้อความ/คำแนะนำจากเทรนเนอร์ถึงลูกเทรนสำหรับวันพักนี้:
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={traineeRestNote}
+                            onChange={(e) => setTraineeRestNote(e.target.value)}
+                            placeholder="เช่น สัปดาห์นี้ซ้อมหนัก เทรนเนอร์ให้พักเต็มที่ 1 วัน หรือลูกทีมติดธุระไม่ได้เล่น..."
+                            className="flex-1 px-3.5 py-2 text-xs font-bold text-white bg-slate-950 border border-amber-500/40 rounded-xl focus:border-amber-400 outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSetTraineeRestDay(traineeRestNote)}
+                            disabled={isSaving}
+                            className="px-3.5 py-2 text-xs font-black text-slate-950 bg-amber-400 rounded-xl hover:bg-amber-300 shrink-0"
+                          >
+                            บันทึกโน้ต
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-[10px] text-slate-400">รวม {assignedExercises.length} ท่า ({assignedSessionMetrics.totalSets} เซ็ต)</p>
-                    </div>
-                  </div>
-
-                  {assignedExercises.length === 0 ? (
-                    <div className="py-14 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl">
-                      <p className="text-sm font-bold text-slate-600">ยังไม่มีตารางฝึกของลูกเทรนในวันที่ {assignDate}</p>
-                      <p className="mt-1 text-xs text-slate-400">กดปุ่ม &quot;🔥 เลือกโปรแกรมพิเศษ / 30 อุทยาน / ฮีโร่&quot; เพื่อดึงตารางสำเร็จรูปมาปรับแต่ง</p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <>
+                      {/* แถบสรุปรวมผลลัพธ์ของตารางฝึกที่จัดให้ลูกเทรน: ระยะเวลา, พลังงานที่เผาผลาญ, ไขมันที่ลด, ปริมาณงาน */}
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 p-4 bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white rounded-2xl border border-emerald-800/60 shadow-xs">
+                        <div>
+                          <span className="text-[10px] font-bold text-emerald-300 uppercase">⏱️ ระยะเวลาออกกำลังกาย</span>
+                          <div className="text-xl font-black text-white mt-0.5">
+                            {assignedSessionMetrics.totalDurationMins} <span className="text-xs font-normal text-slate-300">นาที</span>
+                          </div>
+                          <p className="text-[10px] text-slate-400">รวมเวลาฝึกและพักเซ็ต</p>
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] font-bold text-orange-300 uppercase">🔥 พลังงานที่เผาผลาญ</span>
+                          <div className="text-xl font-black text-orange-400 mt-0.5">
+                            {assignedSessionMetrics.totalCalories.toLocaleString()} <span className="text-xs font-normal text-slate-300">kcal</span>
+                          </div>
+                          <p className="text-[10px] text-slate-400">คำนวณตาม นน. {selectedTrainee?.weight_kg || 70} kg</p>
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] font-bold text-amber-300 uppercase">💧 ไขมันที่ลดลงประเมิน</span>
+                          <div className="text-xl font-black text-amber-300 mt-0.5">
+                            ~{assignedEstimatedFatLossGrams} <span className="text-xs font-normal text-slate-300">กรัม</span>
+                          </div>
+                          <p className="text-[10px] text-slate-400">สลายไขมัน (7.7 kcal = 1g)</p>
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] font-bold text-sky-300 uppercase">🏋️‍♂️ ปริมาณงานรวม (Volume)</span>
+                          <div className="text-xl font-black text-sky-300 mt-0.5">
+                            {assignedSessionMetrics.totalVolumeKg.toLocaleString()} <span className="text-xs font-normal text-slate-300">kg</span>
+                          </div>
+                          <p className="text-[10px] text-slate-400">รวม {assignedExercises.length} ท่า ({assignedSessionMetrics.totalSets} เซ็ต)</p>
+                        </div>
+                      </div>
+
+                      {assignedExercises.length === 0 ? (
+                        <div className="py-14 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl space-y-3">
+                          <div>
+                            <p className="text-sm font-bold text-slate-600">ยังไม่มีตารางฝึกของลูกเทรนในวันที่ {assignDate}</p>
+                            <p className="mt-1 text-xs text-slate-400">เลือกว่าจะจัดโปรแกรมฝึก หรือตั้งให้เป็นวันพัก (หากลูกทีมไม่ได้เล่นวันนั้น)</p>
+                          </div>
+                          <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                            <button
+                              type="button"
+                              onClick={() => handleSetTraineeRestDay()}
+                              className="px-4 py-2 text-xs font-extrabold text-amber-950 bg-amber-300 hover:bg-amber-200 border border-amber-400 rounded-xl shadow-xs transition"
+                            >
+                              🛌 ตั้งเป็นวันพัก (ลูกทีมไม่ได้เล่น)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsTraineeRestDay(false)
+                                setIsPresetModalOpen(true)
+                              }}
+                              className="px-4 py-2 text-xs font-extrabold text-pink-800 bg-pink-100 hover:bg-pink-200 border border-pink-300 rounded-xl transition"
+                            >
+                              🔥 เลือกโปรแกรมสำเร็จรูป / 30 อุทยาน
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsTraineeRestDay(false)
+                                setIsExerciseModalOpen(true)
+                              }}
+                              className="px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition"
+                            >
+                              + เพิ่มท่าฝึกเอง
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {assignedExercises.map((item, idx) => {
                         const loadMeta = getEquipmentLoadMeta(item)
                         const estMins = estimateExerciseDurationMins(item)
@@ -1185,92 +1628,156 @@ export default function TrainerPanel() {
                         const itemFatGrams = Number((itemKcal / 7.7).toFixed(1))
 
                         return (
-                          <div key={item.uuid} className="p-4 border border-slate-200 rounded-2xl bg-slate-50/70 hover:border-emerald-400 transition">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                              {/* ซ้าย: ภาพประกอบท่าออกกำลังกาย + ชื่อท่า + ป้ายเวลา/แคลอรี่/ไขมันที่ลด */}
-                              <div className="flex items-start sm:items-center gap-3.5">
+                          <div
+                            key={item.uuid}
+                            className="bg-white border-2 border-slate-200 rounded-3xl overflow-hidden shadow-sm hover:border-emerald-400 transition-all flex flex-col justify-between"
+                          >
+                            <div>
+                              {/* ภาพเคลื่อนไหวจำลองท่าออกกำลังกายขนาดเต็ม Dual-View พร้อมสวิตช์มุมมอง */}
+                              <div className="p-3 pb-0 bg-slate-900/5">
                                 <ExerciseIllustration
                                   name={item.name}
                                   muscle={item.muscle}
                                   type={item.type}
-                                  size="md"
+                                  size="xl"
                                 />
-                                <div>
-                                  <span className="text-sm font-black text-slate-900">
-                                    {idx + 1}. {item.name}
-                                  </span>
-                                  <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px]">
-                                    <span className="px-2 py-0.5 font-extrabold text-emerald-800 bg-emerald-100 border border-emerald-300 rounded-md">
-                                      {item.muscle} ({item.type})
-                                    </span>
-                                    <span className="px-2 py-0.5 font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 rounded-md">
-                                      ⏱️ เวลา ~{estMins} นาที
-                                    </span>
-                                    <span className="px-2 py-0.5 font-extrabold text-orange-800 bg-orange-50 border border-orange-200 rounded-md">
-                                      🔥 เผาผลาญ {itemKcal} kcal
-                                    </span>
-                                    <span className="px-2 py-0.5 font-extrabold text-amber-900 bg-amber-50 border border-amber-300 rounded-md">
-                                      💧 ลดไขมัน ~{itemFatGrams} กรัม
-                                    </span>
+                              </div>
+
+                              {/* ข้อมูลท่าและปุ่มลบ */}
+                              <div className="p-4 sm:p-5 space-y-3.5">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <span className="px-2.5 py-1 text-xs font-black text-white bg-slate-900 rounded-lg">
+                                        ท่าที่ {idx + 1}
+                                      </span>
+                                      <span className="px-2 py-0.5 text-xs font-black text-emerald-800 bg-emerald-100 border border-emerald-300 rounded-md">
+                                        {item.muscle} ({item.type})
+                                      </span>
+                                      <span className="px-2 py-0.5 text-xs font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 rounded-md">
+                                        ⏱️ ~{estMins} น.
+                                      </span>
+                                      <span className="px-2 py-0.5 text-xs font-extrabold text-orange-800 bg-orange-50 border border-orange-200 rounded-md">
+                                        🔥 {itemKcal} kcal
+                                      </span>
+                                      <span className="px-2 py-0.5 text-xs font-extrabold text-amber-900 bg-amber-50 border border-amber-300 rounded-md">
+                                        💧 ~{itemFatGrams}g
+                                      </span>
+                                    </div>
+
+                                    <h3 className="text-base font-black text-slate-900 mt-2 leading-snug">
+                                      {item.name}
+                                    </h3>
                                   </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveItem(item.uuid)}
+                                    className="px-2.5 py-1.5 text-xs font-black text-rose-600 bg-rose-50 border border-rose-200 rounded-xl hover:bg-rose-100 shrink-0 transition"
+                                    title="ลบท่านี้ออกจากตารางของลูกเทรน"
+                                  >
+                                    ✕ ลบ
+                                  </button>
+                                </div>
+
+                                {/* ฟอร์มปรับแต่งจำนวนเซ็ต น้ำหนัก หรือคาร์ดิโอ */}
+                                <div className="pt-2.5 border-t border-slate-100">
+                                  {item.muscle !== 'Cardio' ? (
+                                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                      <div className="p-2 bg-slate-50 rounded-xl border border-slate-200">
+                                        <label className="block text-[10px] font-bold text-slate-600 mb-0.5">เซ็ต (Sets)</label>
+                                        <input
+                                          type="number"
+                                          value={item.sets}
+                                          onChange={(e) => handleUpdateField(item.uuid, 'sets', e.target.value)}
+                                          className="w-full px-2 py-1 text-sm font-black bg-white border border-slate-300 rounded-lg text-slate-900"
+                                        />
+                                      </div>
+                                      <div className="p-2 bg-slate-50 rounded-xl border border-slate-200">
+                                        <label className="block text-[10px] font-bold text-slate-600 mb-0.5">{loadMeta.repsLabel}</label>
+                                        <input
+                                          type="number"
+                                          value={item.reps}
+                                          onChange={(e) => handleUpdateField(item.uuid, 'reps', e.target.value)}
+                                          className="w-full px-2 py-1 text-sm font-black bg-white border border-slate-300 rounded-lg text-slate-900"
+                                        />
+                                      </div>
+                                      <div className="p-2 bg-emerald-50/80 rounded-xl border border-emerald-300">
+                                        <label className="block text-[10px] font-bold text-emerald-800 mb-0.5">{loadMeta.weightLabel}</label>
+                                        <input
+                                          type="number"
+                                          step="0.5"
+                                          value={item.weight}
+                                          onChange={(e) => handleUpdateField(item.uuid, 'weight', e.target.value)}
+                                          className="w-full px-2 py-1 text-sm font-black bg-white border border-emerald-400 rounded-lg text-emerald-950"
+                                        />
+                                      </div>
+                                      <div className="p-2 bg-slate-50 rounded-xl border border-slate-200">
+                                        <label className="block text-[10px] font-bold text-slate-600 mb-0.5">พักเซ็ต (วิ)</label>
+                                        <input
+                                          type="number"
+                                          step="15"
+                                          value={item.rest_sec}
+                                          onChange={(e) => handleUpdateField(item.uuid, 'rest_sec', e.target.value)}
+                                          className="w-full px-2 py-1 text-sm font-black bg-white border border-slate-300 rounded-lg text-slate-900"
+                                        />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                      <div className="p-2 bg-slate-50 rounded-xl border border-slate-200">
+                                        <label className="block text-[10px] font-bold text-slate-600 mb-0.5">เวลา (นาที)</label>
+                                        <input
+                                          type="number"
+                                          value={item.duration}
+                                          onChange={(e) => handleUpdateField(item.uuid, 'duration', e.target.value)}
+                                          className="w-full px-2 py-1 text-sm font-black bg-white border border-slate-300 rounded-lg text-slate-900"
+                                        />
+                                      </div>
+                                      <div className="p-2 bg-amber-50/80 rounded-xl border border-amber-300">
+                                        <label className="block text-[10px] font-bold text-amber-900 mb-0.5">ความชัน (%)</label>
+                                        <input
+                                          type="number"
+                                          step="0.5"
+                                          value={item.incline}
+                                          onChange={(e) => handleUpdateField(item.uuid, 'incline', e.target.value)}
+                                          className="w-full px-2 py-1 text-sm font-black bg-white border border-amber-400 rounded-lg text-amber-950"
+                                        />
+                                      </div>
+                                      <div className="p-2 bg-sky-50/80 rounded-xl border border-sky-300">
+                                        <label className="block text-[10px] font-bold text-sky-900 mb-0.5">ระยะทาง (Km)</label>
+                                        <input
+                                          type="number"
+                                          step="0.05"
+                                          value={item.distance_km}
+                                          onChange={(e) => handleUpdateField(item.uuid, 'distance_km', e.target.value)}
+                                          className="w-full px-2 py-1 text-sm font-black bg-white border border-sky-400 rounded-lg text-sky-950"
+                                        />
+                                      </div>
+                                      <div className="p-2 bg-sky-50/80 rounded-xl border border-sky-300">
+                                        <label className="block text-[10px] font-bold text-sky-800 mb-0.5">ความเร็ว (Km/h)</label>
+                                        <input
+                                          type="number"
+                                          step="0.1"
+                                          value={item.speed_kmh || 3.5}
+                                          onChange={(e) => handleUpdateField(item.uuid, 'speed_kmh', e.target.value)}
+                                          className="w-full px-2 py-1 text-sm font-black bg-white border border-sky-400 rounded-lg text-sky-950"
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveItem(item.uuid)}
-                                className="self-end sm:self-center px-2.5 py-1 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg hover:bg-rose-100 shrink-0"
-                              >
-                                ลบท่านี้
-                              </button>
                             </div>
-
-                            {item.muscle !== 'Cardio' ? (
-                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                <div>
-                                  <label className="block text-[10px] font-bold text-slate-500">เซ็ต (Sets)</label>
-                                  <input type="number" value={item.sets} onChange={(e) => handleUpdateField(item.uuid, 'sets', e.target.value)} className="w-full px-2.5 py-1 text-xs font-bold bg-white border border-slate-300 rounded" />
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] font-bold text-slate-500">{loadMeta.repsLabel}</label>
-                                  <input type="number" value={item.reps} onChange={(e) => handleUpdateField(item.uuid, 'reps', e.target.value)} className="w-full px-2.5 py-1 text-xs font-bold bg-white border border-slate-300 rounded" />
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] font-bold text-emerald-800">{loadMeta.weightLabel}</label>
-                                  <input type="number" step="0.5" value={item.weight} onChange={(e) => handleUpdateField(item.uuid, 'weight', e.target.value)} className="w-full px-2.5 py-1 text-xs font-bold bg-white border border-emerald-400 rounded" />
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] font-bold text-slate-500">พักเซ็ต (วินาที)</label>
-                                  <input type="number" step="15" value={item.rest_sec} onChange={(e) => handleUpdateField(item.uuid, 'rest_sec', e.target.value)} className="w-full px-2.5 py-1 text-xs font-bold bg-white border border-slate-300 rounded" />
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                <div>
-                                  <label className="block text-[10px] font-bold text-slate-500">เวลา (นาที)</label>
-                                  <input type="number" value={item.duration} onChange={(e) => handleUpdateField(item.uuid, 'duration', e.target.value)} className="w-full px-2.5 py-1 text-xs font-bold bg-white border border-slate-300 rounded" />
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] font-bold text-slate-500">ความชัน (Incline %)</label>
-                                  <input type="number" step="0.5" value={item.incline} onChange={(e) => handleUpdateField(item.uuid, 'incline', e.target.value)} className="w-full px-2.5 py-1 text-xs font-bold bg-white border border-slate-300 rounded" />
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] font-bold text-slate-500">ระยะทางเป้า (Km)</label>
-                                  <input type="number" step="0.05" value={item.distance_km} onChange={(e) => handleUpdateField(item.uuid, 'distance_km', e.target.value)} className="w-full px-2.5 py-1 text-xs font-bold bg-white border border-slate-300 rounded" />
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] font-bold text-sky-700">ความเร็วเฉลี่ย (Km/h)</label>
-                                  <input type="number" step="0.1" value={item.speed_kmh || 3.5} onChange={(e) => handleUpdateField(item.uuid, 'speed_kmh', e.target.value)} className="w-full px-2.5 py-1 text-xs font-bold bg-sky-50 border border-sky-300 rounded" />
-                                </div>
-                              </div>
-                            )}
                           </div>
                         )
                       })}
                     </div>
                   )}
-                </div>
+                </>
               )}
+            </div>
+          )}
 
               {/* ===============================================================
                   SUB-TAB 3: แผนโภชนาการ 5 หมวดของลูกเทรน

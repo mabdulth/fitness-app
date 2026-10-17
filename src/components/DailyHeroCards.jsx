@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import ExerciseIllustration, { getExerciseYouTubeUrl } from './ExerciseIllustration'
 import {
   MASTER_EXERCISE_LIBRARY,
@@ -70,6 +70,8 @@ export default function DailyHeroCards({
   profile,
   allHistoricalLogs = [],
   selectedDate,
+  calendarDays = [],
+  onSelectDate,
   activeDayPlanObj,
   selectedProgramTitle = '',
   isRestDayMode = false,
@@ -100,6 +102,65 @@ export default function DailyHeroCards({
   })
   const [restDayNote, setRestDayNote] = useState('พักฟื้นกล้ามเนื้อตามรอบสัปดาห์')
   const [localWarmupSetsDoneMap, setLocalWarmupSetsDoneMap] = useState({})
+  const [dismissedWarmups, setDismissedWarmups] = useState({})
+  const [activePlankTimer, setActivePlankTimer] = useState(null)
+
+  useEffect(() => {
+    return () => {
+      if (activePlankTimer?.intervalId) {
+        clearInterval(activePlankTimer.intervalId)
+      }
+    }
+  }, [activePlankTimer])
+
+  const handleStartPlankTimer = (item, targetSec = 60) => {
+    if (activePlankTimer?.intervalId) {
+      clearInterval(activePlankTimer.intervalId)
+    }
+    const tSec = Math.max(10, parseInt(targetSec) || 60)
+    const currentCompleted = Array.isArray(item.completed_sets) ? item.completed_sets : []
+    const setsNum = parseInt(item.sets) || 3
+    let nextSetNum = 1
+    for (let s = 1; s <= setsNum; s++) {
+      if (!currentCompleted.includes(s)) {
+        nextSetNum = s
+        break
+      }
+    }
+
+    const startTime = Date.now()
+    const intervalId = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000)
+      if (elapsed >= tSec) {
+        clearInterval(intervalId)
+        setActivePlankTimer(null)
+        onUpdateStats(item.uuid, 'reps', tSec)
+        handleToggleCardSet(item, nextSetNum)
+      } else {
+        setActivePlankTimer(prev => (prev ? { ...prev, elapsedSec: elapsed } : null))
+      }
+    }, 250)
+
+    setActivePlankTimer({
+      uuid: item.uuid,
+      setNumber: nextSetNum,
+      targetSec: tSec,
+      elapsedSec: 0,
+      intervalId
+    })
+  }
+
+  const handleStopPlankTimer = (item, shouldSave = true) => {
+    if (activePlankTimer?.intervalId) {
+      clearInterval(activePlankTimer.intervalId)
+    }
+    if (shouldSave && activePlankTimer) {
+      const actualElapsed = Math.max(5, activePlankTimer.elapsedSec)
+      onUpdateStats(item.uuid, 'reps', actualElapsed)
+      handleToggleCardSet(item, activePlankTimer.setNumber)
+    }
+    setActivePlankTimer(null)
+  }
 
   const totalCatalogCount = MASTER_EXERCISE_LIBRARY.length
   const detectedProgramTitle = extractActiveProgramTitle(todayWorkouts, selectedProgramTitle)
@@ -109,14 +170,19 @@ export default function DailyHeroCards({
     detectedProgramTitle.includes('วันพักฟื้นร่างกาย') ||
     (todayWorkouts.length === 1 && todayWorkouts[0]?.muscle === 'Rest')
 
-  // แทรกท่าวอร์มร่างกายอัตโนมัติ (แบบกระชับ ไม่ซ้ำ)
+  const isWarmupDismissedToday = Boolean(dismissedWarmups[selectedDate])
+
+  // แทรกท่าวอร์มร่างกายอัตโนมัติ (สามารถกดลบออกได้ตลอดเวลา)
   const effectiveWorkouts =
     !isSavedRestDay && todayWorkouts.length > 0
-      ? injectWarmupIntoProgram(todayWorkouts, detectedProgramTitle).map((it, idx) => ({
-          ...it,
-          name: it.name || it.exercise_name || 'ท่าออกกำลังกาย',
-          uuid: it.uuid || `auto-warmup-${selectedDate}-${idx}`
-        }))
+      ? (isWarmupDismissedToday
+          ? todayWorkouts.filter(it => !it.is_warmup && it.muscle !== 'Warmup' && !String(it.name || '').includes('[วอร์ม'))
+          : injectWarmupIntoProgram(todayWorkouts, detectedProgramTitle).map((it, idx) => ({
+              ...it,
+              name: it.name || it.exercise_name || 'ท่าออกกำลังกาย',
+              uuid: it.uuid || `auto-warmup-${selectedDate}-${idx}`
+            }))
+        )
       : todayWorkouts
 
   const safeFocusIndex = Math.min(focusIndex, Math.max(0, effectiveWorkouts.length - 1))
@@ -142,12 +208,118 @@ export default function DailyHeroCards({
 
   const completedRestChecks = Object.values(restCheckedMap).filter(Boolean).length
 
+  // ฟังก์ชันแสดงแถบเลือกวันที่และดูย้อนหลัง 14 วันโดยตรงจากการ์ด
+  const renderDateNavigator = () => {
+    const todayIso = new Date().toISOString().split('T')[0]
+    const isToday = selectedDate === todayIso
+
+    const handleOffsetDate = (offsetDays) => {
+      if (typeof onSelectDate !== 'function') return
+      const [y, m, d] = selectedDate.split('-').map(Number)
+      const current = new Date(y, m - 1, d, 12, 0, 0)
+      current.setDate(current.getDate() + offsetDays)
+      const newIso = current.toISOString().split('T')[0]
+      onSelectDate(newIso)
+    }
+
+    return (
+      <div className="p-3 sm:p-4 bg-white border border-slate-200 rounded-3xl shadow-xs space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {/* ซ้าย: วันที่ปัจจุบัน + ปุ่มเลื่อนวันก่อนหน้า/ถัดไป */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => handleOffsetDate(-1)}
+              className="px-2.5 py-1.5 text-xs font-black text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+              title="ดูวันก่อนหน้า"
+            >
+              ← วันก่อนหน้า
+            </button>
+
+            <div className="flex items-center gap-1.5 bg-slate-900 text-white px-3 py-1 rounded-xl">
+              <span className="text-sm">📅</span>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => typeof onSelectDate === 'function' && onSelectDate(e.target.value)}
+                className="bg-transparent text-xs sm:text-sm font-black text-white focus:outline-none cursor-pointer"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleOffsetDate(1)}
+              className="px-2.5 py-1.5 text-xs font-black text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+              title="ดูวันถัดไป"
+            >
+              วันถัดไป →
+            </button>
+          </div>
+
+          {/* ขวา: ป้ายวันนี้ + ปุ่มกระโดดกลับมาวันนี้ */}
+          <div className="flex items-center gap-2">
+            {!isToday && (
+              <button
+                type="button"
+                onClick={() => typeof onSelectDate === 'function' && onSelectDate(todayIso)}
+                className="px-3 py-1.5 text-xs font-black text-emerald-950 bg-emerald-400 hover:bg-emerald-300 rounded-xl transition shadow-2xs cursor-pointer"
+              >
+                ⚡ กลับมาดูวันนี้
+              </button>
+            )}
+            <span className="text-xs font-bold text-slate-500">
+              {activeDayPlanObj?.dayNameFull}
+            </span>
+          </div>
+        </div>
+
+        {/* แถบปฏิทินเลื่อน 14 วันย้อนหลัง กดเลือกวันได้ทันที */}
+        {Array.isArray(calendarDays) && calendarDays.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 no-scrollbar">
+            {calendarDays.map(day => {
+              const isSelected = day.date === selectedDate
+              const isTodayDay = day.date === todayIso
+              const hasRecord = allHistoricalLogs.some(l => l.date === day.date)
+
+              return (
+                <button
+                  key={day.date}
+                  type="button"
+                  onClick={() => typeof onSelectDate === 'function' && onSelectDate(day.date)}
+                  className={`flex flex-col items-center justify-center min-w-[3.25rem] py-1.5 px-1 rounded-xl border text-center transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-slate-900 text-white border-slate-900 ring-2 ring-emerald-500 font-black'
+                      : hasRecord
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-900 hover:bg-emerald-100'
+                        : isTodayDay
+                          ? 'bg-sky-50 border-sky-300 text-sky-900'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <span className="text-[10px] text-slate-400">{day.dayName}</span>
+                  <span className="text-xs font-black leading-tight my-0.5">{day.dayNum}</span>
+                  <div className="h-1.5 flex items-center justify-center">
+                    {hasRecord && (
+                      <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-emerald-400' : 'bg-emerald-600'}`}></span>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   // =========================================================================
   // โหมดที่ 1: วันพักฟื้นร่างกาย (REST DAY) — ตัวใหญ่ กระชับ สบายตา
   // =========================================================================
   if (isSavedRestDay) {
     return (
-      <div className="p-6 sm:p-8 bg-gradient-to-br from-emerald-950 via-slate-900 to-teal-950 text-white border-2 border-emerald-500/60 rounded-3xl shadow-xl space-y-6">
+      <div className="space-y-4">
+        {renderDateNavigator()}
+        <div className="p-6 sm:p-8 bg-gradient-to-br from-emerald-950 via-slate-900 to-teal-950 text-white border-2 border-emerald-500/60 rounded-3xl shadow-xl space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-emerald-800/60">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-emerald-400 text-slate-950 flex items-center justify-center text-3xl font-black shrink-0">
@@ -226,6 +398,7 @@ export default function DailyHeroCards({
           )}
         </div>
       </div>
+      </div>
     )
   }
 
@@ -234,7 +407,9 @@ export default function DailyHeroCards({
   // =========================================================================
   if (todayWorkouts.length === 0) {
     return (
-      <div className="p-5 sm:p-8 bg-white border border-slate-200 rounded-3xl shadow-sm space-y-6">
+      <div className="space-y-4">
+        {renderDateNavigator()}
+        <div className="p-5 sm:p-8 bg-white border border-slate-200 rounded-3xl shadow-sm space-y-6">
         <div className="text-center max-w-xl mx-auto space-y-1.5">
           <span className="inline-block px-3.5 py-1 text-xs font-extrabold text-emerald-800 bg-emerald-100 rounded-full">
             โหมดการฝึกประจำวัน ({selectedDate})
@@ -269,134 +444,379 @@ export default function DailyHeroCards({
           })}
         </div>
 
-        {/* การ์ดตัวเลือกโหมด 6 รูปแบบ ตัวหนังสือใหญ่ กดง่าย */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="p-5 rounded-2xl border-2 border-emerald-500 bg-emerald-50/50 flex flex-col justify-between">
-            <div>
-              <span className="px-2.5 py-1 text-xs font-black text-white bg-emerald-600 rounded-lg">
-                แนะนำวันนี้
-              </span>
-              <h3 className="text-base sm:text-lg font-black text-slate-900 mt-2">
-                1. {activeDayPlanObj?.module?.title}
-              </h3>
-              <p className="text-sm text-slate-600 mt-1">
-                จัดท่าวอร์ม + เวท + คาร์ดิโอตามอุปกรณ์ของคุณ
-              </p>
+        {/* แถบสรุปข้อแนะนำตามสภาพร่างกายที่เลือก */}
+        <div className={`p-4 rounded-2xl border text-xs sm:text-sm font-bold flex items-center gap-3 transition ${
+          energyCheckIn === 'high'
+            ? 'bg-emerald-50 text-emerald-950 border-emerald-300'
+            : energyCheckIn === 'busy'
+              ? 'bg-indigo-50 text-indigo-950 border-indigo-300'
+              : 'bg-amber-50 text-amber-950 border-amber-300'
+        }`}>
+          <span className="text-2xl shrink-0">
+            {energyCheckIn === 'high' ? '🔥' : energyCheckIn === 'busy' ? '⏱️' : '😴'}
+          </span>
+          <div>
+            <div className="font-black text-sm">
+              {energyCheckIn === 'high'
+                ? 'โหมดพลังงานเต็มร้อย (High Energy):'
+                : energyCheckIn === 'busy'
+                  ? 'โหมดเวลาน้อย / ซ้อมด่วน (Short on Time):'
+                  : 'โหมดเมื่อยล้า / ฟื้นฟูร่างกาย (Active Recovery):'}
             </div>
-            <button
-              type="button"
-              onClick={onGenerateRecommended}
-              className="w-full py-3 px-4 mt-4 text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs"
-            >
-              ⚡ โหลดตารางฝึกวันนี้
-            </button>
-          </div>
-
-          <div className="p-5 rounded-2xl border-2 border-pink-400 bg-pink-50/40 flex flex-col justify-between">
-            <div>
-              <span className="px-2.5 py-1 text-xs font-black text-white bg-pink-600 rounded-lg">
-                30 อุทยาน • โปรแกรมพิเศษ
-              </span>
-              <h3 className="text-base sm:text-lg font-black text-slate-900 mt-2">
-                2. เลือกโปรแกรมพิเศษ / เดินป่า 30 อุทยาน
-              </h3>
-              <p className="text-sm text-slate-600 mt-1">
-                ซ้อมเดินป่า 30 อุทยาน, หุ่นไวรัล/ฮีโร่ หรือตารางมาตรฐาน
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onOpenPresetModal}
-              className="w-full py-3 px-4 mt-4 text-sm font-black text-white bg-pink-600 hover:bg-pink-700 rounded-xl shadow-xs"
-            >
-              🔥 เปิดคลังโปรแกรมทั้งหมด
-            </button>
-          </div>
-
-          <div className="p-5 rounded-2xl border-2 border-amber-400 bg-amber-50/50 flex flex-col justify-between">
-            <div>
-              <span className="px-2.5 py-1 text-xs font-black text-slate-950 bg-amber-400 rounded-lg">
-                REST DAY
-              </span>
-              <h3 className="text-base sm:text-lg font-black text-slate-900 mt-2">
-                3. ตั้งวันนี้เป็น &ldquo;วันพักฟื้นร่างกาย&rdquo;
-              </h3>
-              <p className="text-sm text-slate-600 mt-1">
-                บันทึกวันพักลงปฏิทินเพื่อซ่อมแซมกล้ามเนื้อ
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => typeof onSetRestDayMode === 'function' && onSetRestDayMode(true)}
-              className="w-full py-3 px-4 mt-4 text-sm font-black text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-xl shadow-xs"
-            >
-              🛌 ตั้งเป็นวันพักฟื้น
-            </button>
-          </div>
-
-          <div className="p-5 rounded-2xl border-2 border-teal-400 bg-white flex flex-col justify-between">
-            <div>
-              <h3 className="text-base sm:text-lg font-black text-slate-900">
-                4. 🧘‍♂️ ยืดเหยียดคลายเมื่อย 15 นาที
-              </h3>
-              <p className="text-sm text-slate-600 mt-1">
-                เปิดสะบัก คลายหลังล่างและสะโพก แก้ออฟฟิศซินโดรม
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => typeof onQuickModeSelect === 'function' && onQuickModeSelect('mobility')}
-              className="w-full py-3 px-4 mt-4 text-sm font-black text-white bg-teal-600 hover:bg-teal-700 rounded-xl"
-            >
-              🧘‍♂️ เริ่มยืดเหยียด 15 นาที
-            </button>
-          </div>
-
-          <div className="p-5 rounded-2xl border-2 border-indigo-400 bg-white flex flex-col justify-between">
-            <div>
-              <h3 className="text-base sm:text-lg font-black text-slate-900">
-                5. 🏠 ซ้อมด่วนที่บ้าน 15 นาที (มือเปล่า)
-              </h3>
-              <p className="text-sm text-slate-600 mt-1">
-                บอดี้เวทครบทั้งอก ขา หน้าท้อง ไม่ใช้อุปกรณ์
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => typeof onQuickModeSelect === 'function' && onQuickModeSelect('express_home')}
-              className="w-full py-3 px-4 mt-4 text-sm font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl"
-            >
-              🏠 เริ่มซ้อมที่บ้าน 15 นาที
-            </button>
-          </div>
-
-          <div className="p-5 rounded-2xl border-2 border-sky-400 bg-white flex flex-col justify-between">
-            <div>
-              <h3 className="text-base sm:text-lg font-black text-slate-900">
-                6. 🏃‍♂️ คาร์ดิโอล้วน / เลือกท่าเอง
-              </h3>
-              <p className="text-sm text-slate-600 mt-1">
-                เดินชันลู่วิ่งอย่างเดียว หรือเลือกท่าเองจาก {totalCatalogCount} ท่า
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mt-4">
-              <button
-                type="button"
-                onClick={() => typeof onQuickModeSelect === 'function' && onQuickModeSelect('cardio_only')}
-                className="py-3 px-2 text-xs sm:text-sm font-black text-white bg-sky-600 hover:bg-sky-700 rounded-xl"
-              >
-                🏃‍♂️ คาร์ดิโอล้วน
-              </button>
-              <button
-                type="button"
-                onClick={onOpenExerciseModal}
-                className="py-3 px-2 text-xs sm:text-sm font-black text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl"
-              >
-                + เลือกท่าเอง
-              </button>
+            <div className="font-semibold text-xs opacity-90 mt-0.5">
+              {energyCheckIn === 'high'
+                ? 'จัดเต็มตารางฝึกประจำวัน หรือพิชิตโปรแกรม 30 อุทยาน / หุ่นฮีโร่'
+                : energyCheckIn === 'busy'
+                  ? 'แนะนำซ้อมด่วนที่ห้อง 15 นาที หรือยืดเหยียดคลายเมื่อย ไม่ต้องเดินทางไปยิมและได้ผลลัพธ์จริง'
+                  : 'แนะนำให้พักผ่อนซ่อมแซมกล้ามเนื้อ ดื่มน้ำให้พอ หรือยืดเหยียดเบาๆ ไม่สะสมความล้า'}
             </div>
           </div>
         </div>
+
+        {/* การ์ดตัวเลือกโหมด 6 รูปแบบ ปรับเปลี่ยนตามสภาพร่างกายแบบ Real-time */}
+        {(() => {
+          const modeCardsByEnergy = {
+            high: [
+              {
+                id: 'daily',
+                title: `1. ${activeDayPlanObj?.module?.title || 'ตารางฝึกประจำวัน'}`,
+                badge: '🔥 แนะนำสูงสุดวันนี้ (พลังงานเต็ม 100%)',
+                badgeClass: 'bg-emerald-600 text-white',
+                desc: 'จัดเต็มทั้งท่าวอร์ม + เวทตามอุปกรณ์ของคุณ + คาร์ดิโอเบิร์นไขมัน',
+                borderClass: 'border-2 border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-500/20',
+                actionBtn: (
+                  <button
+                    type="button"
+                    onClick={onGenerateRecommended}
+                    className="w-full py-3 px-4 mt-4 text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs cursor-pointer"
+                  >
+                    ⚡ โหลดตารางฝึกวันนี้
+                  </button>
+                )
+              },
+              {
+                id: 'preset',
+                title: '2. เลือกโปรแกรมพิเศษ / เดินป่า 30 อุทยาน',
+                badge: '30 อุทยาน • พลังงานสูง',
+                badgeClass: 'bg-pink-600 text-white',
+                desc: 'ซ้อมเดินป่า 30 อุทยาน, หุ่นไวรัล/ฮีโร่ หรือตารางมาตรฐาน',
+                borderClass: 'border-2 border-pink-400 bg-pink-50/40',
+                actionBtn: (
+                  <button
+                    type="button"
+                    onClick={onOpenPresetModal}
+                    className="w-full py-3 px-4 mt-4 text-sm font-black text-white bg-pink-600 hover:bg-pink-700 rounded-xl shadow-xs cursor-pointer"
+                  >
+                    🔥 เปิดคลังโปรแกรมทั้งหมด
+                  </button>
+                )
+              },
+              {
+                id: 'cardio',
+                title: '3. 🏃‍♂️ คาร์ดิโอเดินชันลู่วิ่ง โซน 2 (35 นาที)',
+                badge: '🫁 ปอด & หัวใจแข็งแกร่ง',
+                badgeClass: 'bg-sky-600 text-white',
+                desc: 'เดินชัน Incline 8.5% โซน 2 ดึงไขมันสะสมออกมาเผาผลาญเต็มที่',
+                borderClass: 'border-2 border-sky-400 bg-sky-50/40',
+                actionBtn: (
+                  <button
+                    type="button"
+                    onClick={() => typeof onQuickModeSelect === 'function' && onQuickModeSelect('cardio_only')}
+                    className="w-full py-3 px-4 mt-4 text-sm font-black text-white bg-sky-600 hover:bg-sky-700 rounded-xl cursor-pointer"
+                  >
+                    🏃‍♂️ เริ่มคาร์ดิโอเดินชัน
+                  </button>
+                )
+              },
+              {
+                id: 'custom',
+                title: '4. ➕ ออกแบบตารางฝึกเอง',
+                badge: 'อิสระ 100%',
+                badgeClass: 'bg-slate-800 text-white',
+                desc: `เลือกท่าฝึกที่ต้องการจากคลังท่าทั้งหมด ${totalCatalogCount} ท่า`,
+                borderClass: 'border-2 border-slate-300 bg-white',
+                actionBtn: (
+                  <button
+                    type="button"
+                    onClick={onOpenExerciseModal}
+                    className="w-full py-3 px-4 mt-4 text-sm font-black text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl cursor-pointer"
+                  >
+                    + เลือกท่าเองจาก 95 ท่า
+                  </button>
+                )
+              },
+              {
+                id: 'home',
+                title: '5. 🏠 ซ้อมด่วนที่บ้าน 15 นาที',
+                badge: 'บอดี้เวทเข้มข้น',
+                badgeClass: 'bg-indigo-600 text-white',
+                desc: 'บอดี้เวทครบทั้งอก ขา หน้าท้อง ไม่ใช้อุปกรณ์',
+                borderClass: 'border border-slate-200 bg-white',
+                actionBtn: (
+                  <button
+                    type="button"
+                    onClick={() => typeof onQuickModeSelect === 'function' && onQuickModeSelect('express_home')}
+                    className="w-full py-3 px-4 mt-4 text-sm font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl cursor-pointer"
+                  >
+                    🏠 เริ่มซ้อมที่บ้าน 15 นาที
+                  </button>
+                )
+              },
+              {
+                id: 'rest',
+                title: '6. 🛌 ตั้งวันนี้เป็น "วันพักฟื้นร่างกาย"',
+                badge: 'REST DAY',
+                badgeClass: 'bg-amber-400 text-slate-950',
+                desc: 'บันทึกวันพักลงปฏิทินหากต้องการฟื้นฟูกล้ามเนื้อ',
+                borderClass: 'border border-slate-200 bg-white',
+                actionBtn: (
+                  <button
+                    type="button"
+                    onClick={() => typeof onSetRestDayMode === 'function' && onSetRestDayMode(true)}
+                    className="w-full py-3 px-4 mt-4 text-sm font-black text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-xl shadow-xs cursor-pointer"
+                  >
+                    🛌 ตั้งเป็นวันพักฟื้น
+                  </button>
+                )
+              }
+            ],
+            busy: [
+              {
+                id: 'home',
+                title: '1. 🏠 ซ้อมด่วนที่ห้อง 15 นาที (มือเปล่า)',
+                badge: '⚡ แนะนำสูงสุด • จบไว 15 นาที ไม่ง้ออุปกรณ์',
+                badgeClass: 'bg-indigo-600 text-white',
+                desc: 'บอดี้เวทเข้มข้น อก ขา หน้าท้อง พักสั้น 45 วิ เบิร์นไขมันเหงื่อท่วมใน 15 นาที ไม่ต้องเดินทางไปยิม',
+                borderClass: 'border-2 border-indigo-500 bg-indigo-50/70 shadow-sm ring-2 ring-indigo-400/30',
+                actionBtn: (
+                  <button
+                    type="button"
+                    onClick={() => typeof onQuickModeSelect === 'function' && onQuickModeSelect('express_home')}
+                    className="w-full py-3 px-4 mt-4 text-sm font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs cursor-pointer"
+                  >
+                    🏠 เริ่มซ้อมที่ห้อง 15 นาที
+                  </button>
+                )
+              },
+              {
+                id: 'mobility',
+                title: '2. 🧘‍♂️ ยืดเหยียดคลายเมื่อย 15 นาที',
+                badge: '🧘‍♂️ 15 นาที • แก้ออฟฟิศซินโดรม',
+                badgeClass: 'bg-teal-600 text-white',
+                desc: 'เปิดสะบัก คลายหลังล่างและสะโพก เหมาะมากสำหรับวันงานยุ่ง ปวดเมื่อยจากการนั่งทำงานนาน',
+                borderClass: 'border-2 border-teal-500 bg-teal-50/70 shadow-sm ring-2 ring-teal-400/30',
+                actionBtn: (
+                  <button
+                    type="button"
+                    onClick={() => typeof onQuickModeSelect === 'function' && onQuickModeSelect('mobility')}
+                    className="w-full py-3 px-4 mt-4 text-sm font-black text-white bg-teal-600 hover:bg-teal-700 rounded-xl shadow-xs cursor-pointer"
+                  >
+                    🧘‍♂️ เริ่มยืดเหยียด 15 นาที
+                  </button>
+                )
+              },
+              {
+                id: 'cardio_express',
+                title: '3. ⏱️ คาร์ดิโอด่วน 15 นาที',
+                badge: '⏱️ 15 นาที • เผาผลาญเร่งด่วน',
+                badgeClass: 'bg-sky-600 text-white',
+                desc: 'เดินชันลู่วิ่ง Incline 8% เวลา 15 นาที กระตุ้นการเผาผลาญไขมันในเวลาที่จำกัด',
+                borderClass: 'border-2 border-sky-400 bg-sky-50/40',
+                actionBtn: (
+                  <button
+                    type="button"
+                    onClick={() => typeof onQuickModeSelect === 'function' && onQuickModeSelect('cardio_express')}
+                    className="w-full py-3 px-4 mt-4 text-sm font-black text-white bg-sky-600 hover:bg-sky-700 rounded-xl cursor-pointer"
+                  >
+                    ⏱️ เริ่มคาร์ดิโอด่วน 15 นาที
+                  </button>
+                )
+              },
+              {
+                id: 'daily',
+                title: `4. ⚡ ${activeDayPlanObj?.module?.title || 'ตารางประจำวัน'} (ฉบับย่อ)`,
+                badge: 'ตารางประจำวันฉบับเร่งรัด',
+                badgeClass: 'bg-emerald-600 text-white',
+                desc: 'โหลดตารางประจำวันแล้วเลือกเล่นเฉพาะ 2-3 ท่าหลักเพื่อประหยัดเวลา',
+                borderClass: 'border-2 border-emerald-400 bg-white',
+                actionBtn: (
+                  <button
+                    type="button"
+                    onClick={onGenerateRecommended}
+                    className="w-full py-3 px-4 mt-4 text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl cursor-pointer"
+                  >
+                    ⚡ โหลดตารางประจำวัน
+                  </button>
+                )
+              },
+              {
+                id: 'rest',
+                title: '5. 🛌 ตั้งวันนี้เป็น "วันพักฟื้นร่างกาย"',
+                badge: 'REST DAY',
+                badgeClass: 'bg-amber-400 text-slate-950',
+                desc: 'หากติดธุระด่วนจนไม่มีเวลาเล่น บันทึกเป็นวันพักเพื่อรักษาวินัยความสม่ำเสมอบนปฏิทิน',
+                borderClass: 'border border-amber-300 bg-amber-50/40',
+                actionBtn: (
+                  <button
+                    type="button"
+                    onClick={() => typeof onSetRestDayMode === 'function' && onSetRestDayMode(true)}
+                    className="w-full py-3 px-4 mt-4 text-sm font-black text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-xl shadow-xs cursor-pointer"
+                  >
+                    🛌 ตั้งเป็นวันพักฟื้น
+                  </button>
+                )
+              },
+              {
+                id: 'custom',
+                title: '6. ➕ เลือกท่าเอง 1-2 ท่าด่วน',
+                badge: 'เลือกเองสั้นๆ',
+                badgeClass: 'bg-slate-800 text-white',
+                desc: `เลือกเฉพาะท่าที่อยากเล่นในห้องจาก ${totalCatalogCount} ท่า`,
+                borderClass: 'border border-slate-200 bg-white',
+                actionBtn: (
+                  <button
+                    type="button"
+                    onClick={onOpenExerciseModal}
+                    className="w-full py-3 px-4 mt-4 text-sm font-black text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl cursor-pointer"
+                  >
+                    + เลือกท่าเอง
+                  </button>
+                )
+              }
+            ],
+            sore: [
+              {
+                id: 'rest',
+                title: '1. 🛌 ตั้งวันนี้เป็น "วันพักฟื้นร่างกาย" (Active Recovery)',
+                badge: '🛌 แนะนำสูงสุด • ซ่อมแซมกล้ามเนื้อและระบบประสาท',
+                badgeClass: 'bg-amber-400 text-slate-950 font-black',
+                desc: 'กล้ามเนื้อเติบโตขณะที่คุณพักผ่อน หลับลึก ดื่มน้ำให้พอ บันทึกวันพักเพื่อรักษาสถิติความสม่ำเสมอ',
+                borderClass: 'border-2 border-amber-500 bg-amber-50/80 shadow-md ring-2 ring-amber-400/50',
+                actionBtn: (
+                  <button
+                    type="button"
+                    onClick={() => typeof onSetRestDayMode === 'function' && onSetRestDayMode(true)}
+                    className="w-full py-3 px-4 mt-4 text-sm font-black text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-xl shadow-md cursor-pointer"
+                  >
+                    🛌 ตั้งเป็นวันพักฟื้นร่างกาย (แนะนำ)
+                  </button>
+                )
+              },
+              {
+                id: 'mobility',
+                title: '2. 🧘‍♂️ ยืดเหยียดคลายเมื่อย 15 นาที',
+                badge: '🌿 ฟื้นฟูการไหลเวียนเลือด ไม่สะสมความล้า',
+                badgeClass: 'bg-teal-600 text-white',
+                desc: 'ท่ายืดเหยียดเปิดข้อต่อ ช่วยขับกรดแลกติก ลำเลียงสารอาหารไปซ่อมแซมเส้นใยกล้ามเนื้อ และช่วยให้นอนหลับสบาย',
+                borderClass: 'border-2 border-teal-500 bg-teal-50/70 shadow-sm ring-2 ring-teal-400/30',
+                actionBtn: (
+                  <button
+                    type="button"
+                    onClick={() => typeof onQuickModeSelect === 'function' && onQuickModeSelect('mobility')}
+                    className="w-full py-3 px-4 mt-4 text-sm font-black text-white bg-teal-600 hover:bg-teal-700 rounded-xl shadow-xs cursor-pointer"
+                  >
+                    🧘‍♂️ เริ่มยืดเหยียดคลายเมื่อย 15 นาที
+                  </button>
+                )
+              },
+              {
+                id: 'light_walk',
+                title: '3. 🚶‍♂️ เดินเบาๆ ฟื้นฟูร่างกาย (Active Recovery Walk 20 นาที)',
+                badge: '🚶‍♂️ เดินสบายๆ ไม่เหนื่อย',
+                badgeClass: 'bg-sky-600 text-white',
+                desc: 'เดินลู่วิ่งความชันต่ำ (1%) เดินเล่นชิลล์ๆ กระตุ้นการไหลเวียนของน้ำเหลืองและลดอาการตึงตัว',
+                borderClass: 'border-2 border-sky-400 bg-sky-50/40',
+                actionBtn: (
+                  <button
+                    type="button"
+                    onClick={() => typeof onQuickModeSelect === 'function' && onQuickModeSelect('light_walk')}
+                    className="w-full py-3 px-4 mt-4 text-sm font-black text-white bg-sky-600 hover:bg-sky-700 rounded-xl cursor-pointer"
+                  >
+                    🚶‍♂️ เริ่มเดินเบาๆ ฟื้นฟู
+                  </button>
+                )
+              },
+              {
+                id: 'home',
+                title: '4. 🏠 ซ้อมเบาๆ ที่บ้าน 15 นาที',
+                badge: 'ขยับร่างกายเบาๆ',
+                badgeClass: 'bg-indigo-600 text-white',
+                desc: 'บอดี้เวทระดับเบา ขยับข้อต่อให้กระปรี้กระเปร่า ไม่ฝืนร่างกาย',
+                borderClass: 'border border-indigo-200 bg-white',
+                actionBtn: (
+                  <button
+                    type="button"
+                    onClick={() => typeof onQuickModeSelect === 'function' && onQuickModeSelect('express_home')}
+                    className="w-full py-3 px-4 mt-4 text-sm font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl cursor-pointer"
+                  >
+                    🏠 เริ่มซ้อมเบาๆ
+                  </button>
+                )
+              },
+              {
+                id: 'daily',
+                title: `5. ⚡ ${activeDayPlanObj?.module?.title || 'ตารางประจำวัน'}`,
+                badge: 'ตารางประจำวัน (หากรู้สึกพร้อม)',
+                badgeClass: 'bg-slate-700 text-white',
+                desc: 'หากรู้สึกหายเมื่อยล้าและอยากลุยเวท โหลดตารางประจำวันได้เลย',
+                borderClass: 'border border-slate-200 bg-white',
+                actionBtn: (
+                  <button
+                    type="button"
+                    onClick={onGenerateRecommended}
+                    className="w-full py-3 px-4 mt-4 text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl cursor-pointer"
+                  >
+                    ⚡ โหลดตารางฝึกวันนี้
+                  </button>
+                )
+              },
+              {
+                id: 'preset',
+                title: '6. 🏔️ เปิดดูคลัง 30 อุทยาน & โปรแกรมพิเศษ',
+                badge: 'วางแผนทริปต่อไป',
+                badgeClass: 'bg-pink-600 text-white',
+                desc: 'เปิดดูข้อมูลอุทยานหรือวางแผนตารางฝึกสำหรับสัปดาห์หน้า',
+                borderClass: 'border border-slate-200 bg-white',
+                actionBtn: (
+                  <button
+                    type="button"
+                    onClick={onOpenPresetModal}
+                    className="w-full py-3 px-4 mt-4 text-sm font-black text-white bg-pink-600 hover:bg-pink-700 rounded-xl cursor-pointer"
+                  >
+                    🔥 เปิดดูคลังโปรแกรม
+                  </button>
+                )
+              }
+            ]
+          }
+
+          const currentCards = modeCardsByEnergy[energyCheckIn] || modeCardsByEnergy.high
+
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {currentCards.map(card => (
+                <div
+                  key={card.id}
+                  className={`p-5 rounded-2xl flex flex-col justify-between transition-all duration-300 ${card.borderClass}`}
+                >
+                  <div>
+                    <span className={`inline-block px-2.5 py-1 text-xs font-black rounded-lg ${card.badgeClass}`}>
+                      {card.badge}
+                    </span>
+                    <h3 className="text-base sm:text-lg font-black text-slate-900 mt-2">
+                      {card.title}
+                    </h3>
+                    <p className="text-sm text-slate-600 mt-1">
+                      {card.desc}
+                    </p>
+                  </div>
+                  {card.actionBtn}
+                </div>
+              ))}
+            </div>
+          )
+        })()}
+      </div>
       </div>
     )
   }
@@ -411,6 +831,7 @@ export default function DailyHeroCards({
 
   return (
     <div className="space-y-4">
+      {renderDateNavigator()}
       {/* แถบบนสุด: ชื่อโปรแกรมวันนี้ + ปุ่มควบคุมหลัก (ตัวใหญ่ กระชับในกล่องเดียว) */}
       <div className="p-4 sm:p-5 bg-slate-900 text-white rounded-3xl border border-slate-800 shadow-md space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -585,6 +1006,11 @@ export default function DailyHeroCards({
             ? titleParts[1].replace(')', '').trim()
             : item.sub_muscle
 
+          const isPlankHold =
+            item?.is_timed === true ||
+            String(item?.name || '').toLowerCase().includes('plank') ||
+            String(item?.name || '').includes('แพลงก์')
+
           return (
             <div
               key={item.uuid}
@@ -653,12 +1079,19 @@ export default function DailyHeroCards({
                       >
                         ▶ คลิป
                       </a>
-                      {existsInParent && (
+                      {(existsInParent || isWarmupEx) && (
                         <button
                           type="button"
-                          onClick={() => onRemoveExercise(item.uuid)}
-                          className="p-2 text-base font-bold text-slate-400 hover:text-rose-600 rounded-lg"
-                          title="ลบท่านี้"
+                          onClick={() => {
+                            if (isWarmupEx) {
+                              setDismissedWarmups(prev => ({ ...prev, [selectedDate]: true }))
+                            }
+                            if (existsInParent && typeof onRemoveExercise === 'function') {
+                              onRemoveExercise(item.uuid)
+                            }
+                          }}
+                          className="p-2 text-base font-bold text-slate-400 hover:text-rose-600 rounded-lg cursor-pointer"
+                          title={isWarmupEx ? 'ลบท่าวอร์มนี้ออกจากการ์ด' : 'ลบท่านี้'}
                         >
                           ✕
                         </button>
@@ -671,7 +1104,7 @@ export default function DailyHeroCards({
                     {shortWarmupTip}
                   </div>
 
-                  {/* ตัวเลข BIG NUMBERS: เซ็ต / ครั้ง / น้ำหนัก (ตัวใหญ่ กดง่ายบนมือถือ) */}
+                  {/* ตัวเลข BIG NUMBERS: เซ็ต / ครั้ง หรือ วินาที / น้ำหนัก (ตัวใหญ่ กดง่ายบนมือถือ) */}
                   {item.muscle !== 'Cardio' ? (
                     <div className="grid grid-cols-3 gap-2.5">
                       {/* 1. เซ็ต */}
@@ -709,19 +1142,23 @@ export default function DailyHeroCards({
                         <span className="text-xs text-slate-400 block mt-0.5">เซ็ต</span>
                       </div>
 
-                      {/* 2. ครั้ง */}
+                      {/* 2. ครั้ง หรือ วินาที */}
                       <div className="p-3 text-center bg-slate-900 text-white rounded-2xl">
                         <span className="text-xs font-extrabold text-slate-300 block">
-                          จำนวนครั้ง
+                          {isPlankHold ? '⏱️ เวลาค้าง' : 'จำนวนครั้ง'}
                         </span>
                         <div className="flex items-center justify-center gap-2 mt-1.5">
                           {existsInParent && (
                             <button
                               type="button"
                               onClick={() =>
-                                onUpdateStats(item.uuid, 'reps', Math.max(1, repsNum - 1))
+                                onUpdateStats(
+                                  item.uuid,
+                                  'reps',
+                                  isPlankHold ? Math.max(10, repsNum - 5) : Math.max(1, repsNum - 1)
+                                )
                               }
-                              className="w-8 h-8 sm:w-9 sm:h-9 text-base font-black bg-slate-800 rounded-xl hover:bg-slate-700"
+                              className="w-8 h-8 sm:w-9 sm:h-9 text-base font-black bg-slate-800 rounded-xl hover:bg-slate-700 cursor-pointer"
                             >
                               -
                             </button>
@@ -732,25 +1169,37 @@ export default function DailyHeroCards({
                           {existsInParent && (
                             <button
                               type="button"
-                              onClick={() => onUpdateStats(item.uuid, 'reps', repsNum + 1)}
-                              className="w-8 h-8 sm:w-9 sm:h-9 text-base font-black bg-slate-800 rounded-xl hover:bg-slate-700"
+                              onClick={() =>
+                                onUpdateStats(
+                                  item.uuid,
+                                  'reps',
+                                  isPlankHold ? repsNum + 5 : repsNum + 1
+                                )
+                              }
+                              className="w-8 h-8 sm:w-9 sm:h-9 text-base font-black bg-slate-800 rounded-xl hover:bg-slate-700 cursor-pointer"
                             >
                               +
                             </button>
                           )}
                         </div>
                         <span className="text-xs text-slate-400 block mt-0.5">
-                          {loadMeta.isPerSide ? 'ครั้ง/ข้าง' : 'ครั้ง'}
+                          {isPlankHold ? 'วินาที (Seconds)' : loadMeta.isPerSide ? 'ครั้ง/ข้าง' : 'ครั้ง'}
                         </span>
                       </div>
 
                       {/* 3. น้ำหนัก */}
                       <div className="p-3 text-center bg-emerald-950 text-white border border-emerald-700 rounded-2xl">
                         <span className="text-xs font-extrabold text-emerald-300 block">
-                          {isWarmupEx ? 'น้ำหนัก' : loadMeta.isPerSide ? 'กก./ข้าง' : 'น้ำหนัก (kg)'}
+                          {isPlankHold
+                            ? 'แรงต้าน'
+                            : isWarmupEx
+                              ? 'น้ำหนัก'
+                              : loadMeta.isPerSide
+                                ? 'กก./ข้าง'
+                                : 'น้ำหนัก (kg)'}
                         </span>
                         <div className="flex items-center justify-center gap-1.5 mt-1.5">
-                          {existsInParent && !isWarmupEx && (
+                          {existsInParent && !isWarmupEx && !isPlankHold && (
                             <button
                               type="button"
                               onClick={() =>
@@ -761,7 +1210,7 @@ export default function DailyHeroCards({
                               -
                             </button>
                           )}
-                          {existsInParent && !isWarmupEx ? (
+                          {existsInParent && !isWarmupEx && !isPlankHold ? (
                             <input
                               type="number"
                               step="0.5"
@@ -771,10 +1220,10 @@ export default function DailyHeroCards({
                             />
                           ) : (
                             <span className="text-xl sm:text-2xl font-black text-emerald-300 py-1">
-                              ตัวเปล่า
+                              {isPlankHold ? 'ตัวเปล่า' : 'ตัวเปล่า'}
                             </span>
                           )}
-                          {existsInParent && !isWarmupEx && (
+                          {existsInParent && !isWarmupEx && !isPlankHold && (
                             <button
                               type="button"
                               onClick={() => onUpdateStats(item.uuid, 'weight', weightNum + 2.5)}
@@ -785,7 +1234,11 @@ export default function DailyHeroCards({
                           )}
                         </div>
                         <span className="text-xs text-emerald-300 block mt-0.5">
-                          {isWarmupEx ? 'มือเปล่า' : `แนะนำ ~${effortEval.expectedWorkingWeight} kg`}
+                          {isPlankHold
+                            ? 'เกร็งค้างต้านแรงโน้มถ่วง'
+                            : isWarmupEx
+                              ? 'มือเปล่า'
+                              : `แนะนำ ~${effortEval.expectedWorkingWeight} kg`}
                         </span>
                       </div>
                     </div>
@@ -878,12 +1331,127 @@ export default function DailyHeroCards({
               {/* ส่วนท้ายการ์ด: ปุ่มกดเช็กเซ็ตขนาดใหญ่ กดง่ายบนมือถือ */}
               {item.muscle !== 'Cardio' && (
                 <div className="px-5 py-4 bg-slate-50 border-t border-slate-200">
-                  <div className="flex items-center justify-between mb-2.5">
-                    <span className="text-xs sm:text-sm font-extrabold text-slate-700">
-                      {isWarmupEx
-                        ? 'กดเมื่อวอร์มครบแต่ละรอบ:'
-                        : `กดเมื่อยกจบเซ็ต (พัก ${item.rest_sec || 90} วิ):`}
-                    </span>
+                  {/* Plank Hold Live Timer Control: มีปุ่มให้กดเริ่มนับถอยหลัง หรือบันทึกเวลาที่ทำได้จริง */}
+                  {isPlankHold && existsInParent && (
+                    <div className="mb-3.5 p-3.5 bg-gradient-to-r from-indigo-950 via-slate-900 to-slate-950 text-white rounded-2xl border-2 border-indigo-500/60 shadow-md">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-2xl animate-pulse">⏱️</span>
+                          <div>
+                            <div className="text-xs sm:text-sm font-black text-indigo-300">
+                              {activePlankTimer?.uuid === item.uuid
+                                ? `🔥 กำลังแพลงก์เซ็ตที่ ${activePlankTimer.setNumber}...`
+                                : `จับเวลาแพลงก์ (เป้าหมาย ${repsNum} วินาที)`}
+                            </div>
+                            <div className="text-[11px] text-slate-400">
+                              {activePlankTimer?.uuid === item.uuid
+                                ? 'เกร็งหน้าท้อง หายใจสม่ำเสมอ ก้นไม่โด่ง หลังไม่แอ่น'
+                                : 'กดเริ่มจับเวลา หรือเลือกระยะเวลาเป้าหมายด้านล่าง'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {activePlankTimer?.uuid === item.uuid ? (
+                          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                            <div className="px-3 py-1.5 rounded-xl bg-slate-950 border border-emerald-400/80 text-emerald-400 font-mono text-xl sm:text-2xl font-black">
+                              {Math.max(0, activePlankTimer.targetSec - activePlankTimer.elapsedSec)}s
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleStopPlankTimer(item, true)}
+                              className="px-4 py-2 text-xs sm:text-sm font-black text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-xl shadow-xs transition cursor-pointer"
+                              title="หยุดและบันทึกเวลาจริงที่ทำได้"
+                            >
+                              ✓ บันทึกจริง ({activePlankTimer.elapsedSec} วิ)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleStopPlankTimer(item, false)}
+                              className="px-2.5 py-2 text-xs font-bold text-rose-400 hover:text-white bg-slate-800 rounded-xl transition cursor-pointer"
+                              title="ยกเลิกการจับเวลา"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto justify-end">
+                            <span className="text-[11px] font-bold text-slate-400 mr-1 hidden sm:inline">ตั้งเวลา:</span>
+                            {[30, 45, 60, 90].map(sec => (
+                              <button
+                                key={sec}
+                                type="button"
+                                onClick={() => onUpdateStats(item.uuid, 'reps', sec)}
+                                className={`px-2.5 py-1 text-xs font-black rounded-lg transition cursor-pointer ${
+                                  repsNum === sec
+                                    ? 'bg-amber-400 text-slate-950 shadow-xs'
+                                    : 'bg-slate-800 text-slate-300 hover:text-white'
+                                }`}
+                              >
+                                {sec}วิ
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => handleStartPlankTimer(item, repsNum)}
+                              className="px-4 py-2 text-xs sm:text-sm font-black text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5"
+                            >
+                              <span>▶</span>
+                              <span>เริ่มจับเวลาแพลงก์</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* แถบหลอดความคืบหน้าขณะกำลังแพลงก์ */}
+                      {activePlankTimer?.uuid === item.uuid && (
+                        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mt-3">
+                          <div
+                            className="bg-gradient-to-r from-indigo-400 via-teal-400 to-emerald-400 h-full rounded-full transition-all duration-300"
+                            style={{
+                              width: `${Math.min(100, (activePlankTimer.elapsedSec / activePlankTimer.targetSec) * 100)}%`
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs sm:text-sm font-extrabold text-slate-700">
+                        {isWarmupEx
+                          ? 'กดเมื่อวอร์มครบแต่ละรอบ:'
+                          : 'กดเมื่อยกจบเซ็ต:'}
+                      </span>
+                      {!isWarmupEx && existsInParent && (
+                        <div className="inline-flex items-center bg-slate-200/90 p-0.5 rounded-xl text-xs font-black">
+                          <button
+                            type="button"
+                            onClick={() => onUpdateStats(item.uuid, 'rest_sec', 60)}
+                            className={`px-2 py-0.5 rounded-lg transition cursor-pointer ${
+                              (parseInt(item.rest_sec) || 90) === 60
+                                ? 'bg-amber-400 text-slate-950 shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                            title="พัก 1 นาที (เหมาะกับมัดเล็ก/บอดี้เวท)"
+                          >
+                            ⚡ พัก 60 วิ
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onUpdateStats(item.uuid, 'rest_sec', 90)}
+                            className={`px-2 py-0.5 rounded-lg transition cursor-pointer ${
+                              (parseInt(item.rest_sec) || 90) === 90
+                                ? 'bg-emerald-600 text-white shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                            title="พัก 1.5 นาที (ฟื้นพลัง ATP เต็มที่สำหรับท่าหนัก)"
+                          >
+                            🔥 พัก 90 วิ
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     <span className="text-xs sm:text-sm font-black text-emerald-700">
                       สำเร็จ {completedSetsArr.length}/{setsNum} เซ็ต
                     </span>

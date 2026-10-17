@@ -85,28 +85,7 @@ export function calculateDailyMacrosAndHydration(profile, bioMetrics, activeBurn
   return { dynamicTargetKcal, proteinGrams, carbGrams, fatGrams, totalWaterLiters, sweatLossMl: Math.round(sweatLossLiters * 1000) }
 }
 
-function playCompletionBeep() {
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext
-    if (!AudioCtx) return
-    const ctx = new AudioCtx()
-    const playTone = (freq, startTime, duration) => {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.type = 'sine'
-      osc.frequency.setValueAtTime(freq, startTime)
-      gain.gain.setValueAtTime(0.25, startTime)
-      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration)
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.start(startTime)
-      osc.stop(startTime + duration)
-    }
-    const now = ctx.currentTime
-    playTone(880, now, 0.18)
-    playTone(1174.66, now + 0.22, 0.35)
-  } catch {}
-}
+import { playLoudRestAlarm, stopRestAlarm } from '../utils/audioAlarm'
 
 export default function LiveGymToolbar({
   restTimerRequest,
@@ -156,7 +135,7 @@ export default function LiveGymToolbar({
         setInternalTimerActive(false)
         setInternalJustFinished(true)
         endTimeRef.current = null
-        playCompletionBeep()
+        playLoudRestAlarm()
       } else {
         setInternalRemainingSec(diffSec)
       }
@@ -165,6 +144,7 @@ export default function LiveGymToolbar({
   }, [internalTimerActive, isShared])
 
   const handleStartManualTimer = (sec, label = 'MANUAL OVERRIDE') => {
+    stopRestAlarm()
     if (isShared && onStartManualTimer) {
       onStartManualTimer(sec, label)
       return
@@ -193,6 +173,7 @@ export default function LiveGymToolbar({
   }
 
   const handleStopTimer = () => {
+    stopRestAlarm()
     if (isShared && onStopTimer) {
       onStopTimer()
       return

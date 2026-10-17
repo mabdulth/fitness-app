@@ -8,8 +8,10 @@ import DailyHeroCards, { extractActiveProgramTitle } from '../components/DailyHe
 import MealPlannerWidget from '../components/MealPlannerWidget'
 import TrailReadinessModal from '../components/TrailReadinessModal'
 import ForestryAcademicHub from '../components/ForestryAcademicHub'
-import LiveGymToolbar, { getSmartSwapCandidate } from '../components/LiveGymToolbar'
+import LiveGymToolbar, { getSmartSwapCandidate, calculateDailyMacrosAndHydration } from '../components/LiveGymToolbar'
 import FloatingRestTimer from '../components/FloatingRestTimer'
+import RestFinishedModal from '../components/RestFinishedModal'
+import { playLoudRestAlarm, stopRestAlarm } from '../utils/audioAlarm'
 import {
   formatLocalISO,
   getEquipmentLoadMeta,
@@ -75,32 +77,15 @@ export default function Dashboard() {
     label: '',
     justFinished: false
   })
+  const [restAlertModal, setRestAlertModal] = useState({
+    isOpen: false,
+    exerciseName: '',
+    totalSec: 90
+  })
   const restEndTimeRef = useRef(null)
 
-  const playRestCompletionBeep = () => {
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext
-      if (!AudioCtx) return
-      const ctx = new AudioCtx()
-      const playTone = (freq, startTime, duration) => {
-        const osc = ctx.createOscillator()
-        const gain = ctx.createGain()
-        osc.type = 'sine'
-        osc.frequency.setValueAtTime(freq, startTime)
-        gain.gain.setValueAtTime(0.25, startTime)
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration)
-        osc.connect(gain)
-        gain.connect(ctx.destination)
-        osc.start(startTime)
-        osc.stop(startTime + duration)
-      }
-      const now = ctx.currentTime
-      playTone(880, now, 0.18)
-      playTone(1174.66, now + 0.22, 0.35)
-    } catch {}
-  }
-
   const handleStartRestTimer = (seconds, label = 'พักฟื้นระหว่างเซ็ต') => {
+    stopRestAlarm()
     const duration = Math.max(5, parseInt(seconds) || 90)
     restEndTimeRef.current = Date.now() + duration * 1000
     setRestTimer({
@@ -110,6 +95,7 @@ export default function Dashboard() {
       label,
       justFinished: false
     })
+    setRestAlertModal(prev => ({ ...prev, isOpen: false }))
   }
 
   const handleAdjustRestTimer = (deltaSec) => {
@@ -127,6 +113,7 @@ export default function Dashboard() {
   }
 
   const handleStopRestTimer = () => {
+    stopRestAlarm()
     restEndTimeRef.current = null
     setRestTimer({
       active: false,
@@ -135,7 +122,14 @@ export default function Dashboard() {
       label: '',
       justFinished: false
     })
+    setRestAlertModal(prev => ({ ...prev, isOpen: false }))
     setRestTimerRequest(null)
+  }
+
+  const handleCloseRestModal = () => {
+    stopRestAlarm()
+    setRestAlertModal(prev => ({ ...prev, isOpen: false }))
+    setRestTimer(prev => ({ ...prev, justFinished: false }))
   }
 
   useEffect(() => {
@@ -145,13 +139,20 @@ export default function Dashboard() {
       const diffSec = Math.ceil((restEndTimeRef.current - Date.now()) / 1000)
       if (diffSec <= 0) {
         restEndTimeRef.current = null
+        const finishedLabel = restTimer.label || 'พักฟื้นระหว่างเซ็ต'
+        const finishedTotal = restTimer.totalSec || 90
         setRestTimer(prev => ({
           ...prev,
           active: false,
           remainingSec: 0,
           justFinished: true
         }))
-        playRestCompletionBeep()
+        playLoudRestAlarm()
+        setRestAlertModal({
+          isOpen: true,
+          exerciseName: finishedLabel,
+          totalSec: finishedTotal
+        })
       } else {
         setRestTimer(prev => ({
           ...prev,
@@ -160,16 +161,16 @@ export default function Dashboard() {
       }
     }, 250)
     return () => clearInterval(interval)
-  }, [restTimer.active])
+  }, [restTimer.active, restTimer.label, restTimer.totalSec])
 
   useEffect(() => {
-    if (restTimer.justFinished) {
+    if (restTimer.justFinished && !restAlertModal.isOpen) {
       const t = setTimeout(() => {
         setRestTimer(prev => ({ ...prev, justFinished: false }))
       }, 5000)
       return () => clearTimeout(t)
     }
-  }, [restTimer.justFinished])
+  }, [restTimer.justFinished, restAlertModal.isOpen])
 
   const [allWorkoutsMap, setAllWorkoutsMap] = useState({})
   const [weeklyLogs, setWeeklyLogs] = useState([])
@@ -620,6 +621,62 @@ export default function Dashboard() {
 
       setSelectedProgramsByDate(prev => ({ ...prev, [selectedDate]: progTitle }))
       setTodayWorkouts([cardioItem])
+      return
+    }
+
+    if (modeKey === 'cardio_express') {
+      const progTitle = '⏱️ โหมดคาร์ดิโอด่วน 15 นาที (Express Cardio)'
+      const inclineEx = findEx('Incline Walk', 'Cardio')
+      const cardioItem = {
+        uuid: crypto.randomUUID(),
+        name: 'Treadmill Incline Walk (เดินชันเร่งด่วน 15 นาที)',
+        muscle: 'Cardio',
+        sub_muscle: 'Fat Burn Express',
+        type: 'Cardio',
+        sets: 1,
+        reps: 1,
+        weight: 0,
+        rest_sec: 60,
+        duration: 15,
+        incline: 8.0,
+        distance_km: 0.9,
+        speed_kmh: 3.6,
+        kcal_per_unit: 8,
+        program_title: progTitle,
+        notes: `[โปรแกรม: ${progTitle}] เดินชันสั้น 15 นาที เบิร์นไขมันเร่งด่วนในเวลาจำกัด`,
+        completed_sets: []
+      }
+
+      setSelectedProgramsByDate(prev => ({ ...prev, [selectedDate]: progTitle }))
+      setTodayWorkouts([cardioItem])
+      return
+    }
+
+    if (modeKey === 'light_walk') {
+      const progTitle = '🚶‍♂️ โหมดเดินเบาๆ ฟื้นฟูร่างกาย (Active Recovery Walk)'
+      const cardioItem = {
+        uuid: crypto.randomUUID(),
+        name: 'Treadmill Easy Walk (เดินลู่วิ่งฟื้นฟู)',
+        muscle: 'Cardio',
+        sub_muscle: 'Zero Fatigue & Blood Flow',
+        type: 'Cardio',
+        sets: 1,
+        reps: 1,
+        weight: 0,
+        rest_sec: 60,
+        duration: 20,
+        incline: 1.0,
+        distance_km: 1.2,
+        speed_kmh: 3.6,
+        kcal_per_unit: 5,
+        program_title: progTitle,
+        notes: `[โปรแกรม: ${progTitle}] เดินสบายๆ กระตุ้นการไหลเวียนโลหิต ไม่สะสมความล้า`,
+        completed_sets: []
+      }
+
+      setSelectedProgramsByDate(prev => ({ ...prev, [selectedDate]: progTitle }))
+      setTodayWorkouts([cardioItem])
+      return
     }
   }
 
@@ -1103,25 +1160,37 @@ export default function Dashboard() {
   const bodyStrengthStatus = (() => {
     const baseLevelScore =
       profile?.fitness_level === 'Advanced'
-        ? 58
+        ? 30
         : profile?.fitness_level === 'Intermediate'
-          ? 42
-          : 28
+          ? 20
+          : 12
 
-    const weeklyMuscleAvgRatio =
-      muscleActivationMatrix.reduce((sum, m) => sum + m.ratio, 0) /
-      Math.max(1, muscleActivationMatrix.length)
+    // นับจำนวนวันที่เคยบันทึกการออกกำลังกายจริงทั้งหมด (Unique Training Days)
+    const distinctDates = new Set(
+      allHistoricalLogs.map(l => l.date).filter(Boolean)
+    )
+    if (dailyMetrics.totalSets > 0 || dailyMetrics.cardioMins > 0) {
+      distinctDates.add(selectedDate)
+    }
 
+    // โบนัสความสม่ำเสมอ: วันละ 1.5 คะแนน (สะสม 20 วันได้เต็ม 30 คะแนน)
+    const consistencyBonus = Math.min(30, Math.round(distinctDates.size * 1.5))
+
+    // โบนัสปริมาณงานสะสมตลอดชีพ: ทุก 30 เซ็ตได้ 1 คะแนน (สะสม 600 เซ็ตได้เต็ม 20 คะแนน)
     const lifetimeSetsCount =
       allHistoricalLogs.reduce((sum, l) => sum + (parseInt(l.sets) || 0), 0) +
       dailyMetrics.totalSets
+    const experienceBonus = Math.min(20, Math.round(lifetimeSetsCount / 30))
 
-    const experienceBonus = Math.min(20, Math.round(lifetimeSetsCount / 6))
-    const weeklyConditioningBonus = Math.round(weeklyMuscleAvgRatio * 0.35)
+    // โบนัสความสมดุลกล้ามเนื้อในสัปดาห์นี้ สูงสุด 20 คะแนน
+    const weeklyMuscleAvgRatio =
+      muscleActivationMatrix.reduce((sum, m) => sum + m.ratio, 0) /
+      Math.max(1, muscleActivationMatrix.length)
+    const weeklyConditioningBonus = Math.min(20, Math.round((weeklyMuscleAvgRatio / 100) * 20))
 
     const score = Math.min(
       100,
-      Math.max(15, baseLevelScore + weeklyConditioningBonus + experienceBonus)
+      Math.max(10, baseLevelScore + consistencyBonus + experienceBonus + weeklyConditioningBonus)
     )
 
     if (score >= 90) {
@@ -1157,7 +1226,7 @@ export default function Dashboard() {
         barClass: 'from-teal-400 to-emerald-400'
       }
     }
-    if (score >= 38) {
+    if (score >= 35) {
       return {
         level: 2,
         title: 'Lv.2 นักเดินป่าร่างแกร่ง',
@@ -1325,71 +1394,154 @@ export default function Dashboard() {
         </div>
       </nav>
       
-      {/* เติมบรรทัดนี้ลงไป */}
       <div className="px-4 sm:px-6 pt-6 mx-auto max-w-7xl space-y-6">
-        {/* แถบสรุป KPI ประจำวัน */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-          <div className="p-4 bg-white border border-stone-200 rounded-2xl shadow-xs">
-            <span className="text-[11px] font-bold text-slate-400 uppercase">เวลาฝึกรวมวันนี้</span>
-            <div className="mt-1 text-2xl font-black text-indigo-700">
-              ⏱️ {dailyMetrics.totalWorkoutMins} <span className="text-xs font-normal text-slate-500">นาที</span>
+        {/* แถบแจ้งเตือนสำหรับผู้ใช้ใหม่ที่ยังไม่ได้บันทึกชื่อโปรไฟล์เริ่มต้น */}
+        {profile && (!profile.schedule_overrides?._onboarded || !profile.display_name || profile.display_name === 'นักสำรวจ' || profile.display_name.trim() === '') && (
+          <div className="p-4 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-2xl shadow-md flex flex-wrap items-center justify-between gap-3 animate-pulse">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">⚠️</span>
+              <div>
+                <h4 className="text-sm font-black">ยังไม่ได้ตั้งค่าโปรไฟล์เริ่มต้น</h4>
+                <p className="text-xs text-amber-100">
+                  กรุณาระบุชื่อของคุณและบันทึกข้อมูลสรีระ เพื่อให้ระบบคำนวณน้ำหนักและจัดตารางฝึกให้ถูกต้อง
+                </p>
+              </div>
             </div>
-            <p className="mt-0.5 text-[11px] text-slate-500">
-              เวท {dailyMetrics.strengthMins} น. + คาร์ดิโอ {dailyMetrics.cardioMins} น.
-            </p>
-          </div>
-
-          <div className="p-4 bg-white border border-stone-200 rounded-2xl shadow-xs">
-            <span className="text-[11px] font-bold text-slate-400 uppercase">ปริมาณงาน (Volume)</span>
-            <div className="mt-1 text-2xl font-black text-slate-900">
-              {dailyMetrics.totalVolume.toLocaleString()} <span className="text-xs font-normal text-slate-500">kg</span>
-            </div>
-            <p className="mt-0.5 text-[11px] text-emerald-700 font-semibold">
-              เช็กแล้ว {dailyMetrics.completedSetsCount}/{dailyMetrics.totalSets} เซ็ต
-            </p>
-          </div>
-
-          <div className="p-4 bg-white border border-stone-200 rounded-2xl shadow-xs">
-            <span className="text-[11px] font-bold text-slate-400 uppercase">พลังงานที่เผาผลาญ</span>
-            <div className="mt-1 text-2xl font-black text-orange-600">
-              🔥 {dailyMetrics.totalCalories.toLocaleString()} <span className="text-xs font-normal text-slate-500">kcal</span>
-            </div>
-            <p className="mt-0.5 text-[11px] text-slate-500">ปรับตามสมาร์ทวอทช์ได้</p>
-          </div>
-
-          <div className="p-4 bg-white border border-stone-200 rounded-2xl shadow-xs">
-            <span className="text-[11px] font-bold text-slate-400 uppercase">ระยะทาง & ความเร็ว</span>
-            <div className="mt-1 text-2xl font-black text-sky-700">
-              {dailyMetrics.cardioDist.toFixed(2)} <span className="text-xs font-normal text-slate-500">km</span>
-            </div>
-            <p className="mt-0.5 text-[11px] text-slate-500">
-              เฉลี่ย <strong className="text-sky-800">{avgCardioSpeed} km/h</strong>
-            </p>
-          </div>
-
-          <div className="p-4 bg-white border border-stone-200 rounded-2xl shadow-xs col-span-2 md:col-span-1">
-            <span className="text-[11px] font-bold text-slate-400 uppercase">โหมด / ความหนักวันนี้</span>
-            <div className="mt-1 text-xl font-black text-emerald-700">
-              {isCurrentDateRestMode
-                ? '🛌 วันพักฟื้น'
-                : avgIntensityPercent > 0
-                  ? `⚡ ${avgIntensityPercent}%`
-                  : todayWorkouts.length > 0
-                    ? '🏃‍♂️ Cardio Mode'
-                    : '⏳ รอเลือกโหมด'}
-            </div>
-            <p
-              className="mt-0.5 text-[11px] text-slate-500 truncate"
-              title={currentSelectedProgramTitle || 'ยังไม่ได้เลือกโปรแกรมสำหรับวันนี้'}
+            <button
+              type="button"
+              onClick={() => navigate('/profile?onboarding=true')}
+              className="px-4 py-2 text-xs font-black bg-white text-slate-900 rounded-xl hover:bg-amber-100 transition shadow-sm"
             >
-              {currentSelectedProgramTitle ? (
-                <span>🎯 <strong>{currentSelectedProgramTitle}</strong></span>
-              ) : (
-                <span>คลิกเลือกโหมดด้านล่างได้เลย</span>
-              )}
-            </p>
+              ⚙️ ตั้งค่าโปรไฟล์ตอนนี้ →
+            </button>
           </div>
-        </div>
+        )}
+
+        {/* แถบแจ้งเตือนสถานะคำขอเข้าร่วมทีม */}
+        {profile?.schedule_overrides?._team_request?.status === 'pending' && (
+          <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs flex flex-wrap items-center justify-between gap-2">
+            <span className="font-extrabold text-amber-900 flex items-center gap-1.5">
+              <span>⏳</span> กำลังรอเทรนเนอร์อนุมัติคำขอเข้าร่วมทีม: &quot;{profile.schedule_overrides._team_request.team_name}&quot;
+            </span>
+            <button
+              type="button"
+              onClick={() => navigate('/profile')}
+              className="text-[11px] font-extrabold text-amber-800 underline"
+            >
+              ดูรายละเอียดในตั้งค่า
+            </button>
+          </div>
+        )}
+
+        {/* แถบสรุป KPI ประจำวัน (แสดงเฉพาะหน้า 'การ์ดฝึก' และ 'กราฟ') */}
+        {(activeTab === 'cards' || activeTab === 'analytics') && (
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+            <div className="p-4 bg-white border border-stone-200 rounded-2xl shadow-xs">
+              <span className="text-[11px] font-bold text-slate-400 uppercase">เวลาฝึกรวมวันนี้</span>
+              <div className="mt-1 text-2xl font-black text-indigo-700">
+                ⏱️ {dailyMetrics.totalWorkoutMins} <span className="text-xs font-normal text-slate-500">นาที</span>
+              </div>
+              <p className="mt-0.5 text-[11px] text-slate-500">
+                เวท {dailyMetrics.strengthMins} น. + คาร์ดิโอ {dailyMetrics.cardioMins} น.
+              </p>
+            </div>
+
+            <div className="p-4 bg-white border border-stone-200 rounded-2xl shadow-xs">
+              <span className="text-[11px] font-bold text-slate-400 uppercase">ปริมาณงาน (Volume)</span>
+              <div className="mt-1 text-2xl font-black text-slate-900">
+                {dailyMetrics.totalVolume.toLocaleString()} <span className="text-xs font-normal text-slate-500">kg</span>
+              </div>
+              <p className="mt-0.5 text-[11px] text-emerald-700 font-semibold">
+                เช็กแล้ว {dailyMetrics.completedSetsCount}/{dailyMetrics.totalSets} เซ็ต
+              </p>
+            </div>
+
+            <div className="p-4 bg-white border border-stone-200 rounded-2xl shadow-xs">
+              <span className="text-[11px] font-bold text-slate-400 uppercase">พลังงานที่เผาผลาญ</span>
+              <div className="mt-1 text-2xl font-black text-orange-600">
+                🔥 {dailyMetrics.totalCalories.toLocaleString()} <span className="text-xs font-normal text-slate-500">kcal</span>
+              </div>
+              <p className="mt-0.5 text-[11px] text-slate-500">ปรับตามสมาร์ทวอทช์ได้</p>
+            </div>
+
+            <div className="p-4 bg-white border border-stone-200 rounded-2xl shadow-xs">
+              <span className="text-[11px] font-bold text-slate-400 uppercase">ระยะทาง & ความเร็ว</span>
+              <div className="mt-1 text-2xl font-black text-sky-700">
+                {dailyMetrics.cardioDist.toFixed(2)} <span className="text-xs font-normal text-slate-500">km</span>
+              </div>
+              <p className="mt-0.5 text-[11px] text-slate-500">
+                เฉลี่ย <strong className="text-sky-800">{avgCardioSpeed} km/h</strong>
+              </p>
+            </div>
+
+            <div className="p-4 bg-white border border-stone-200 rounded-2xl shadow-xs col-span-2 md:col-span-1">
+              <span className="text-[11px] font-bold text-slate-400 uppercase">โหมด / ความหนักวันนี้</span>
+              <div className="mt-1 text-xl font-black text-emerald-700">
+                {isCurrentDateRestMode
+                  ? '🛌 วันพักฟื้น'
+                  : avgIntensityPercent > 0
+                    ? `⚡ ${avgIntensityPercent}%`
+                    : todayWorkouts.length > 0
+                      ? '🏃‍♂️ Cardio Mode'
+                      : '⏳ รอเลือกโหมด'}
+              </div>
+              <p
+                className="mt-0.5 text-[11px] text-slate-500 truncate"
+                title={currentSelectedProgramTitle || 'ยังไม่ได้เลือกโปรแกรมสำหรับวันนี้'}
+              >
+                {currentSelectedProgramTitle ? (
+                  <span>🎯 <strong>{currentSelectedProgramTitle}</strong></span>
+                ) : (
+                  <span>คลิกเลือกโหมดด้านล่างได้เลย</span>
+                )}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* แถบสรุปสำหรับหน้าโภชนาการ: แสดง พลังงานที่ต้องเผาผลาญ (Energy Target & Calorie Deficit/Surplus) */}
+        {activeTab === 'nutrition' && (() => {
+          const nutritionCalc = calculateDailyMacrosAndHydration(
+            profile,
+            bioMetrics,
+            dailyMetrics.totalCalories,
+            dailyMetrics.totalWorkoutMins
+          )
+          return (
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-orange-950/90 via-slate-900 to-amber-950/90 border-2 border-orange-500/50 rounded-2xl shadow-md text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-2.5 py-0.5 text-[10px] font-black text-slate-950 bg-amber-400 rounded-md">
+                    NUTRITION ENERGY TARGET
+                  </span>
+                  <span className="text-xs text-orange-200 font-bold">
+                    เป้าหมายการเผาผลาญ & รับประทานวันนี้
+                  </span>
+                </div>
+                <h3 className="text-base sm:text-lg font-black text-white">
+                  🔥 พลังงานที่ต้องเผาผลาญ: <span className="text-amber-300">{nutritionCalc.dynamicTargetKcal.toLocaleString()} kcal</span>
+                </h3>
+                <p className="text-xs text-slate-300">
+                  คำนวณจาก BMR ({bioMetrics.bmr} kcal) + เผาผลาญจากการออกกำลังกายวันนี้ ({dailyMetrics.totalCalories.toLocaleString()} kcal)
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 bg-slate-950/80 px-4 py-3 rounded-xl border border-orange-500/30 shrink-0">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">เผาผลาญจริงวันนี้</span>
+                  <div className="text-xl font-black text-orange-400">
+                    🔥 {dailyMetrics.totalCalories.toLocaleString()} <span className="text-xs font-normal text-slate-400">kcal</span>
+                  </div>
+                </div>
+                <div className="border-l border-slate-700 pl-3 space-y-0.5 text-xs font-bold text-slate-300">
+                  <div>🥩 โปรตีนเป้าหมาย: <strong className="text-emerald-400">{nutritionCalc.proteinGrams}g</strong></div>
+                  <div>🍚 คาร์โบไฮเดรต: <strong className="text-amber-300">{nutritionCalc.carbGrams}g</strong></div>
+                  <div>🥑 ไขมันดี: <strong className="text-rose-300">{nutritionCalc.fatGrams}g</strong></div>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* =====================================================================
             TAB 1: การ์ดแนะนำท่าเล่นประจำวัน (DAILY HERO FLASHCARDS & REST HUB)
@@ -1418,6 +1570,8 @@ export default function Dashboard() {
                 profile={profile}
                 allHistoricalLogs={allHistoricalLogs}
                 selectedDate={selectedDate}
+                calendarDays={calendarDays}
+                onSelectDate={handleDateChange}
                 activeDayPlanObj={activeDayPlanObj}
                 selectedProgramTitle={currentSelectedProgramTitle}
                 isRestDayMode={isCurrentDateRestMode}
@@ -1733,6 +1887,7 @@ export default function Dashboard() {
           <AnalyticsWidgets
             muscleActivationMatrix={muscleActivationMatrix}
             allHistoricalLogs={allHistoricalLogs}
+            profile={profile}
             mode="analytics"
           />
         )}
@@ -1750,6 +1905,7 @@ export default function Dashboard() {
             <AnalyticsWidgets
               muscleActivationMatrix={muscleActivationMatrix}
               allHistoricalLogs={allHistoricalLogs}
+              profile={profile}
               mode="nutrition"
             />
           </div>
@@ -1791,6 +1947,18 @@ export default function Dashboard() {
         restTimer={restTimer}
         onAdjustTimer={handleAdjustRestTimer}
         onStopTimer={handleStopRestTimer}
+      />
+
+      {/* Popup กลางจอแจ้งเตือนหมดเวลาพักเซ็ต พร้อมเสียงเตือนและสั่นมือถือ */}
+      <RestFinishedModal
+        isOpen={restAlertModal.isOpen}
+        onClose={handleCloseRestModal}
+        exerciseName={restAlertModal.exerciseName}
+        restDurationSec={restAlertModal.totalSec}
+        onExtendRest={(addSec) => {
+          handleCloseRestModal()
+          handleStartRestTimer(addSec, `${restAlertModal.exerciseName} (พักต่อ ${addSec} วิ)`)
+        }}
       />
 
       <ExerciseModal 

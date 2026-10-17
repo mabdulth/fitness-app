@@ -341,6 +341,15 @@ export function classifyExerciseBiomechanics(name = '', muscle = 'Chest') {
         photoUrl: BIOMECHANICAL_REAL_PHOTOS.LEG_ISOLATION
       }
     }
+    if (n.includes('goblet') || n.includes('สควอทถือดัมเบล') || n.includes('ถือดัมเบลแนบอก') || n.includes('ดัมเบลแนบอก')) {
+      return {
+        pattern: 'GOBLET_SQUAT',
+        gripMode: 'neutral',
+        postureTh: 'ถือดัมเบลแนบอกชิดกระดูกสันอก ลำตัวนิ่ง ย่อเข่าพับสะโพกส่งก้นลงขนานพื้น',
+        vectorLabel: 'กอดดัมเบลแนบอก ย่อเข่าส่งสะโพกลงขนานพื้น ↓ • ลำตัวนิ่งคงที่ ถีบส้นเท้าขึ้นตรงๆ ↑',
+        photoUrl: BIOMECHANICAL_REAL_PHOTOS.SQUAT_BILATERAL
+      }
+    }
     return {
       pattern: 'SQUAT_BILATERAL',
       gripMode: 'neutral',
@@ -350,13 +359,59 @@ export function classifyExerciseBiomechanics(name = '', muscle = 'Chest') {
     }
   }
 
-  // 6. หมวดหน้าท้อง (Core)
+  // 6. หมวดหน้าท้อง (Core: แยกแพลงก์, โหนบาร์ยกขา, นอนซิทอัพ/ครันช์, ปีนเขา, รัสเชียนทวิสต์)
   if (muscle === 'Core') {
+    if (n.includes('plank') || n.includes('แพลงก์')) {
+      return {
+        pattern: 'CORE_PLANK',
+        gripMode: 'neutral',
+        postureTh: 'นอนคว่ำยันศอก ลำตัวขนานพื้นเกร็งแกนกลางตรงดั่งท่อนไม้',
+        vectorLabel: 'วางศอก 90° กดปลายเท้า เกร็งหน้าท้อง-สะโพก-ก้นเป็นเส้นตรงระนาบเดียวกัน ↔',
+        photoUrl: BIOMECHANICAL_REAL_PHOTOS.CORE_CRUNCH
+      }
+    }
+    if (n.includes('hanging') || n.includes('โหนบาร์') || n.includes('leg raise') || n.includes('knee raise')) {
+      return {
+        pattern: 'CORE_HANGING_RAISE',
+        gripMode: 'wide',
+        postureTh: 'โหนบาร์แขนตึง ใช้หน้าท้องล่างม้วนดึงเข่า/ขาขึ้น 90°',
+        vectorLabel: 'ล็อกตัวไม่ให้แกว่ง ม้วนสะโพกดึงเข่าขึ้นมาที่ระดับหน้าอก ↑ ค้าง 1 วินาที',
+        photoUrl: BIOMECHANICAL_REAL_PHOTOS.CORE_CRUNCH
+      }
+    }
+    if (n.includes('mountain') || n.includes('climber') || n.includes('ปีนเขา')) {
+      return {
+        pattern: 'CORE_MOUNTAIN_CLIMBER',
+        gripMode: 'neutral',
+        postureTh: 'ตั้งท่าดันพื้น แทงเข่าสลับซ้าย-ขวาเข้าหาหน้าอกอย่างรวดเร็ว',
+        vectorLabel: 'หลังตรง แทงเข่าสลับซ้าย-ขวาต่อเนื่อง ↔ รีดไขมันหน้าท้องลึก',
+        photoUrl: BIOMECHANICAL_REAL_PHOTOS.CORE_CRUNCH
+      }
+    }
+    if (n.includes('twist') || n.includes('woodchopper') || n.includes('บิดลำตัว') || n.includes('pallof')) {
+      return {
+        pattern: 'CORE_RUSSIAN_TWIST',
+        gripMode: 'neutral',
+        postureTh: 'นั่งตัววี (V-Sit) ยกขาลอยเล็กน้อย บิดเอวซ้าย-ขวา',
+        vectorLabel: 'เกร็งหน้าท้อง เอนตัว 45° บิดช่วงเอวซ้าย-ขวา ↺ ↻ สร้างร่อง 11 และเอวคอด',
+        photoUrl: BIOMECHANICAL_REAL_PHOTOS.CORE_CRUNCH
+      }
+    }
+    if (n.includes('cable crunch') || n.includes('kneeling') || n.includes('คุกเข่า')) {
+      return {
+        pattern: 'CORE_KNEELING_CRUNCH',
+        gripMode: 'close',
+        postureTh: 'คุกเข่าจับเชือกเคเบิลข้างใบหู พับม้วนซี่โครงเข้าหาเชิงกราน',
+        vectorLabel: 'สะโพกนิ่ง ม้วนกระดูกสันหลังพับหน้าท้องลงหาพื้น ↓ บีบซิกแพคลึก',
+        photoUrl: BIOMECHANICAL_REAL_PHOTOS.CORE_CRUNCH
+      }
+    }
+    // Bicycle Crunch, Reverse Crunch, Standard Crunch
     return {
-      pattern: 'CORE_CRUNCH',
+      pattern: 'CORE_CRUNCH_LYING',
       gripMode: 'neutral',
-      postureTh: 'เกร็งพับหน้าท้อง / บิดเอว / แพลงก์',
-      vectorLabel: 'ใช้กล้ามเนื้อหน้าท้องดึงยกขาหรือเกร็งลำตัวขนานพื้น ↑',
+      postureTh: 'นอนหงายชันเข่า ม้วนหน้าท้องยกสะบักลอยจากพื้น',
+      vectorLabel: 'ม้วนหน้าท้องดึงกระดูกอกเข้าหากระดูกเชิงกราน ↑ ไม่ใช้มือกระชากคอ',
       photoUrl: BIOMECHANICAL_REAL_PHOTOS.CORE_CRUNCH
     }
   }
@@ -1160,6 +1215,86 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
               )}
 
               {/* ===============================================================
+                  8B_2. GOBLET_SQUAT (สควอทถือดัมเบลแนบอก: มุมด้านข้างเห็นดัมเบลแนบอก ลำตัวนิ่ง ย่อสะโพก หน้าขาและต้นขาต่อเนื่องกัน)
+                 =============================================================== */}
+              {bio.pattern === 'GOBLET_SQUAT' && (
+                <>
+                  {/* มุมด้านหน้า: ยืนสองขาถือดัมเบลแนบอก ย่อสะโพกลงเข่าผายออกอย่างสมดุล */}
+                  <g transform="translate(80, 42)">
+                    <g>
+                      {isAnimating && (
+                        <animateTransform
+                          attributeName="transform"
+                          type="translate"
+                          values="0,0; 0,16; 0,0"
+                          dur="2.2s"
+                          repeatCount="indefinite"
+                        />
+                      )}
+                      <circle cx="0" cy="10" r="6.5" fill="#cbd5e1" />
+                      <rect x="-12" y="19" width="24" height="30" rx="5" fill={theme.primary} />
+                      
+                      {/* ดัมเบลแนบอกชิดกระดูกสันอก */}
+                      <rect x="-7" y="22" width="14" height="4.5" rx="1.5" fill="#f59e0b" />
+                      <rect x="-3" y="26.5" width="6" height="7" fill="#94a3b8" />
+                      <rect x="-7" y="33.5" width="14" height="4.5" rx="1.5" fill="#f59e0b" />
+                      
+                      {/* สองแขนกอดประคองดัมเบลใต้ลูกตุ้ม */}
+                      <path d="M -13 26 L -7 29" stroke="#e2e8f0" strokeWidth="4" strokeLinecap="round" />
+                      <path d="M 13 26 L 7 29" stroke="#e2e8f0" strokeWidth="4" strokeLinecap="round" />
+                    </g>
+                    {/* สองขายืนกว้างเท่าไหล่ ย่อเข่าผายออกอย่างสมดุล */}
+                    <line x1="-9" y1="50" x2="-14" y2="88" stroke="#e2e8f0" strokeWidth="6" strokeLinecap="round" />
+                    <line x1="9" y1="50" x2="14" y2="88" stroke="#e2e8f0" strokeWidth="6" strokeLinecap="round" />
+                  </g>
+
+                  {/* มุมด้านข้าง: เห็นถือดัมเบลแนบอก ลำตัวคงที่/เอียงเล็กน้อยตามธรรมชาติ ต้นขาและหน้าขาต่อเนื่องกัน */}
+                  <g transform="translate(235, 42)">
+                    {/* เส้นระดับพื้น */}
+                    <line x1="-35" y1="88" x2="35" y2="88" stroke="#334155" strokeWidth="2" strokeDasharray="3 3" />
+                    <line x1="4" y1="88" x2="20" y2="88" stroke="#64748b" strokeWidth="4.5" strokeLinecap="round" />
+
+                    <g>
+                      {isAnimating && (
+                        <animateTransform
+                          attributeName="transform"
+                          type="translate"
+                          values="0,0; -7,16; 0,0"
+                          dur="2.2s"
+                          repeatCount="indefinite"
+                        />
+                      )}
+                      <circle cx="2" cy="10" r="6.5" fill="#cbd5e1" />
+                      
+                      {/* ลำตัว (Torso): แนวกระดูกสันหลังคงที่ เอียงไปข้างหน้าเล็กน้อย 15° เพื่อความสมดุล ไม่โก่งงอ */}
+                      <line x1="1" y1="18" x2="-5" y2="48" stroke={theme.primary} strokeWidth="9.5" strokeLinecap="round" />
+                      
+                      {/* ดัมเบลถือแนบอกด้านหน้าลำตัว (Goblet Position) */}
+                      <g transform="translate(6, 21)">
+                        <rect x="0" y="0" width="8" height="4.5" rx="1.5" fill="#f59e0b" />
+                        <rect x="2.5" y="4.5" width="3" height="7" fill="#cbd5e1" />
+                        <rect x="0" y="11.5" width="8" height="4.5" rx="1.5" fill="#f59e0b" />
+                      </g>
+                      {/* แขนสองข้างกอดประคองดัมเบลชิดอก */}
+                      <polyline points="0,22 9,28 7,24" fill="none" stroke="#e2e8f0" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                      
+                      {/* ก้นและสะโพก (Glutes): ไฮไลต์สีกล้ามเนื้อทำงาน */}
+                      <circle cx="-5" cy="48" r="4.5" fill={theme.glow} />
+                      
+                      {/* ต้นขา (Thigh / Quads): เชื่อมต่อจากสะโพกไปหัวเข่าต่อเนื่องกัน */}
+                      <line x1="-5" y1="48" x2="14" y2="64" stroke={theme.glow} strokeWidth="7" strokeLinecap="round" />
+                    </g>
+
+                    {/* หน้าขา/หน้าแข้ง (Shin): เชื่อมจากเข่าลงสู่ข้อเท้าเต็มเท้า ไม่ขาดตอน */}
+                    <line x1="7" y1="64" x2="12" y2="88" stroke="#e2e8f0" strokeWidth="6.5" strokeLinecap="round" />
+                    
+                    {/* ลูกศรชี้นำแรงถีบส้นเท้า */}
+                    <line x1="30" y1="72" x2="30" y2="24" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
+                  </g>
+                </>
+              )}
+
+              {/* ===============================================================
                   8C. LUNGE_UNILATERAL (Walking Lunges / Step-Up เห็นขาหน้า + ขาหลังครบ 2 ข้าง!)
                  =============================================================== */}
               {bio.pattern === 'LUNGE_UNILATERAL' && (
@@ -1278,15 +1413,214 @@ export default function ExerciseIllustration({ name = '', muscle, type, size = '
               )}
 
               {/* ===============================================================
-                  8E. ท่าอื่นๆ (SQUAT_BILATERAL, DEADLIFT_HINGE, HORIZONTAL_ROW, PUSHUP_DIP, CHEST_FLY, LEG_ISOLATION, CORE_CRUNCH)
+                  8E-1. CORE_PLANK (แพลงก์: ลำตัวขนานพื้น ยันศอก 90° แกนกลางสว่างกระพริบ)
+                 =============================================================== */}
+              {bio.pattern === 'CORE_PLANK' && (
+                <>
+                  <g transform="translate(80, 52)">
+                    <circle cx="0" cy="18" r="6.5" fill="#cbd5e1" />
+                    <rect x="-16" y="27" width="32" height="22" rx="4" fill="#475569" />
+                    <line x1="-14" y1="36" x2="-14" y2="68" stroke="#e2e8f0" strokeWidth="5.5" strokeLinecap="round" />
+                    <line x1="14" y1="36" x2="14" y2="68" stroke="#e2e8f0" strokeWidth="5.5" strokeLinecap="round" />
+                    <line x1="-14" y1="68" x2="-6" y2="68" stroke="#cbd5e1" strokeWidth="4.5" strokeLinecap="round" />
+                    <line x1="14" y1="68" x2="6" y2="68" stroke="#cbd5e1" strokeWidth="4.5" strokeLinecap="round" />
+                    <rect x="-8" y="32" width="16" height="12" rx="3" fill={theme.glow}>
+                      {isAnimating && (
+                        <animate attributeName="opacity" values="0.4;1;0.4" dur="1.4s" repeatCount="indefinite" />
+                      )}
+                    </rect>
+                  </g>
+
+                  <g transform="translate(235, 52)">
+                    <line x1="20" y1="42" x2="20" y2="68" stroke="#e2e8f0" strokeWidth="5.5" strokeLinecap="round" />
+                    <line x1="20" y1="68" x2="32" y2="68" stroke="#cbd5e1" strokeWidth="5" strokeLinecap="round" />
+                    <circle cx="28" cy="36" r="6.5" fill="#cbd5e1" />
+                    <line x1="22" y1="42" x2="-8" y2="46" stroke={theme.primary} strokeWidth="8.5" strokeLinecap="round" />
+                    <line x1="-8" y1="46" x2="-36" y2="68" stroke="#94a3b8" strokeWidth="6" strokeLinecap="round" />
+                    <circle cx="6" cy="44" r="5" fill={theme.glow}>
+                      {isAnimating && (
+                        <animate attributeName="r" values="3;6;3" dur="1.4s" repeatCount="indefinite" />
+                      )}
+                    </circle>
+                    <line x1="-34" y1="32" x2="28" y2="32" stroke="#34d399" strokeWidth="2" strokeDasharray="3 3" />
+                  </g>
+                </>
+              )}
+
+              {/* ===============================================================
+                  8E-2. CORE_HANGING_RAISE (โหนบาร์ยกเข่า/ยกขา: แขนจับบาร์ด้านบน ม้วนเข่าขึ้น 90°)
+                 =============================================================== */}
+              {bio.pattern === 'CORE_HANGING_RAISE' && (
+                <>
+                  <g transform="translate(80, 36)">
+                    <line x1="-36" y1="8" x2="36" y2="8" stroke="#64748b" strokeWidth="4.5" strokeLinecap="round" />
+                    <line x1="-16" y1="8" x2="-14" y2="28" stroke="#e2e8f0" strokeWidth="4.5" strokeLinecap="round" />
+                    <line x1="16" y1="8" x2="14" y2="28" stroke="#e2e8f0" strokeWidth="4.5" strokeLinecap="round" />
+                    <circle cx="0" cy="22" r="6.5" fill="#cbd5e1" />
+                    <rect x="-11" y="30" width="22" height="26" rx="4" fill={theme.primary} />
+                    <g>
+                      {isAnimating && (
+                        <animateTransform
+                          attributeName="transform"
+                          type="translate"
+                          values="0,20; 0,0; 0,20"
+                          dur="2.0s"
+                          repeatCount="indefinite"
+                        />
+                      )}
+                      <line x1="-6" y1="56" x2="-6" y2="76" stroke={theme.glow} strokeWidth="5.5" strokeLinecap="round" />
+                      <line x1="6" y1="56" x2="6" y2="76" stroke={theme.glow} strokeWidth="5.5" strokeLinecap="round" />
+                    </g>
+                  </g>
+
+                  <g transform="translate(235, 36)">
+                    <line x1="-15" y1="8" x2="15" y2="8" stroke="#64748b" strokeWidth="5" strokeLinecap="round" />
+                    <line x1="0" y1="8" x2="0" y2="28" stroke="#e2e8f0" strokeWidth="5" strokeLinecap="round" />
+                    <circle cx="0" cy="22" r="6.5" fill="#cbd5e1" />
+                    <line x1="0" y1="30" x2="-2" y2="58" stroke={theme.primary} strokeWidth="8.5" strokeLinecap="round" />
+                    <g>
+                      {isAnimating && (
+                        <animateTransform
+                          attributeName="transform"
+                          type="rotate"
+                          values="0 -2 58; -85 -2 58; 0 -2 58"
+                          dur="2.0s"
+                          repeatCount="indefinite"
+                        />
+                      )}
+                      <polyline points="-2,58 14,72 14,92" fill="none" stroke="#e2e8f0" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </g>
+                    <path d="M 16,84 A 20,20 0 0,0 24,56" fill="none" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
+                  </g>
+                </>
+              )}
+
+              {/* ===============================================================
+                  8E-3. CORE_CRUNCH_LYING (นอนหงายชันเข่า ม้วนตัวทำครันช์ / ซิทอัพ / ไบซิเคิล)
+                 =============================================================== */}
+              {bio.pattern === 'CORE_CRUNCH_LYING' && (
+                <>
+                  <g transform="translate(80, 50)">
+                    <rect x="-34" y="66" width="68" height="6" rx="2" fill="#334155" />
+                    <g>
+                      {isAnimating && (
+                        <animateTransform attributeName="transform" type="translate" values="0,10; 0,0; 0,10" dur="1.8s" repeatCount="indefinite" />
+                      )}
+                      <circle cx="0" cy="30" r="6.5" fill="#cbd5e1" />
+                      <rect x="-12" y="38" width="24" height="24" rx="4" fill={theme.primary} />
+                      <polyline points="-18,36 -12,42 -6,38" fill="none" stroke="#e2e8f0" strokeWidth="3" strokeLinecap="round" />
+                      <polyline points="18,36 12,42 6,38" fill="none" stroke="#e2e8f0" strokeWidth="3" strokeLinecap="round" />
+                    </g>
+                    <line x1="-10" y1="64" x2="-14" y2="48" stroke="#94a3b8" strokeWidth="5.5" strokeLinecap="round" />
+                    <line x1="10" y1="64" x2="14" y2="48" stroke="#94a3b8" strokeWidth="5.5" strokeLinecap="round" />
+                  </g>
+
+                  <g transform="translate(235, 50)">
+                    <rect x="-38" y="68" width="76" height="5" rx="2" fill="#334155" />
+                    <polyline points="-12,68 -24,46 -34,68" fill="none" stroke="#94a3b8" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <g>
+                      {isAnimating && (
+                        <animateTransform
+                          attributeName="transform"
+                          type="rotate"
+                          values="0 -10 68; -32 -10 68; 0 -10 68"
+                          dur="1.8s"
+                          repeatCount="indefinite"
+                        />
+                      )}
+                      <line x1="-10" y1="68" x2="18" y2="68" stroke={theme.primary} strokeWidth="8.5" strokeLinecap="round" />
+                      <circle cx="24" cy="62" r="6" fill="#cbd5e1" />
+                      <polyline points="14,66 22,54 26,60" fill="none" stroke="#e2e8f0" strokeWidth="3.5" strokeLinecap="round" />
+                    </g>
+                    <path d="M 26,64 A 18,18 0 0,1 16,42" fill="none" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
+                  </g>
+                </>
+              )}
+
+              {/* ===============================================================
+                  8E-4. CORE_MOUNTAIN_CLIMBER (ท่าปีนเขา: ดันพื้น แทงเข่าสลับไปข้างหน้า)
+                 =============================================================== */}
+              {bio.pattern === 'CORE_MOUNTAIN_CLIMBER' && (
+                <>
+                  <g transform="translate(80, 50)">
+                    <circle cx="0" cy="20" r="6.5" fill="#cbd5e1" />
+                    <rect x="-14" y="29" width="28" height="24" rx="4" fill={theme.primary} />
+                    <line x1="-14" y1="36" x2="-14" y2="70" stroke="#e2e8f0" strokeWidth="5" strokeLinecap="round" />
+                    <line x1="14" y1="36" x2="14" y2="70" stroke="#e2e8f0" strokeWidth="5" strokeLinecap="round" />
+                    <line x1="-6" y1="53" x2="-6" y2="40" stroke={theme.glow} strokeWidth="5.5" strokeLinecap="round" />
+                    <line x1="6" y1="53" x2="6" y2="70" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" />
+                  </g>
+
+                  <g transform="translate(235, 50)">
+                    <line x1="18" y1="42" x2="18" y2="70" stroke="#e2e8f0" strokeWidth="5.5" strokeLinecap="round" />
+                    <circle cx="26" cy="36" r="6" fill="#cbd5e1" />
+                    <line x1="18" y1="42" x2="-12" y2="52" stroke={theme.primary} strokeWidth="8" strokeLinecap="round" />
+                    <line x1="-12" y1="52" x2="-36" y2="70" stroke="#64748b" strokeWidth="5" strokeLinecap="round" />
+                    <g>
+                      {isAnimating && (
+                        <animateTransform
+                          attributeName="transform"
+                          type="translate"
+                          values="0,0; 18,-6; 0,0"
+                          dur="0.8s"
+                          repeatCount="indefinite"
+                        />
+                      )}
+                      <polyline points="-12,52 4,50 -2,70" fill="none" stroke={theme.glow} strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </g>
+                    <line x1="-8" y1="62" x2="12" y2="54" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
+                  </g>
+                </>
+              )}
+
+              {/* ===============================================================
+                  8E-5. CORE_RUSSIAN_TWIST & KNEELING CRUNCH (นั่งตัว V บิดเอวซ้าย-ขวา / คุกเข่า)
+                 =============================================================== */}
+              {(bio.pattern === 'CORE_RUSSIAN_TWIST' || bio.pattern === 'CORE_KNEELING_CRUNCH') && (
+                <>
+                  <g transform="translate(80, 48)">
+                    <circle cx="0" cy="22" r="6.5" fill="#cbd5e1" />
+                    <rect x="-12" y="31" width="24" height="26" rx="4" fill={theme.primary} />
+                    <g>
+                      {isAnimating && (
+                        <animateTransform
+                          attributeName="transform"
+                          type="translate"
+                          values="-14,0; 14,0; -14,0"
+                          dur="1.5s"
+                          repeatCount="indefinite"
+                        />
+                      )}
+                      <rect x="-8" y="44" width="16" height="8" rx="2" fill={theme.glow} />
+                      <line x1="-16" y1="48" x2="16" y2="48" stroke="#e2e8f0" strokeWidth="3" strokeLinecap="round" />
+                    </g>
+                    <polyline points="-8,57 -14,70 -8,78" fill="none" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+                    <polyline points="8,57 14,70 8,78" fill="none" stroke="#94a3b8" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+                  </g>
+
+                  <g transform="translate(235, 48)">
+                    <circle cx="-16" cy="28" r="6.5" fill="#cbd5e1" />
+                    <line x1="-12" y1="36" x2="0" y2="68" stroke={theme.primary} strokeWidth="8.5" strokeLinecap="round" />
+                    <polyline points="0,68 18,50 30,62" fill="none" stroke="#e2e8f0" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <circle cx="2" cy="48" r="6" fill={theme.glow}>
+                      {isAnimating && (
+                        <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite" />
+                      )}
+                    </circle>
+                    <path d="M -8,46 A 14,14 0 0,1 12,46" fill="none" stroke="#34d399" strokeWidth="2.5" markerEnd="url(#arrowConcentric)" />
+                  </g>
+                </>
+              )}
+
+              {/* ===============================================================
+                  8F. ท่าอื่นๆ (SQUAT_BILATERAL, DEADLIFT_HINGE, HORIZONTAL_ROW, PUSHUP_DIP, CHEST_FLY, LEG_ISOLATION)
                  =============================================================== */}
               {(bio.pattern === 'SQUAT_BILATERAL' ||
                 bio.pattern === 'DEADLIFT_HINGE' ||
                 bio.pattern === 'HORIZONTAL_ROW' ||
                 bio.pattern === 'PUSHUP_DIP' ||
                 bio.pattern === 'CHEST_FLY' ||
-                bio.pattern === 'LEG_ISOLATION' ||
-                bio.pattern === 'CORE_CRUNCH') && (
+                bio.pattern === 'LEG_ISOLATION') && (
                 <>
                   {/* มุมด้านหน้า */}
                   <g transform="translate(80, 42)">

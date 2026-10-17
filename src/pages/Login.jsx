@@ -46,22 +46,36 @@ export default function Login() {
         })
 
         if (data.session) {
-          navigate('/profile')
+          navigate('/profile?onboarding=true')
         } else {
-          setInfoMsg('สร้างบัญชีสำเร็จ! กรุณากดเข้าสู่ระบบด้วยอีเมลและรหัสผ่านของคุณ')
+          setInfoMsg('สร้างบัญชีสำเร็จ! กรุณากดเข้าสู่ระบบเพื่อเริ่มตั้งค่าโปรไฟล์ของคุณ')
           setIsSignUp(false)
         }
       }
     } else {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password
       })
 
       if (error) {
         setErrorMsg('อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง')
-      } else {
-        navigate('/dashboard')
+      } else if (signInData?.user) {
+        // ตรวจสอบว่าเคยตั้งค่าโปรไฟล์และระบุชื่อจริงหรือยัง
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('display_name, schedule_overrides')
+          .eq('id', signInData.user.id)
+          .single()
+
+        const isOnboarded = prof?.schedule_overrides?._onboarded
+        const hasValidName = prof?.display_name && prof.display_name.trim() !== '' && prof.display_name !== 'นักสำรวจ'
+
+        if (!isOnboarded || !hasValidName) {
+          navigate('/profile?onboarding=true')
+        } else {
+          navigate('/dashboard')
+        }
       }
     }
 
