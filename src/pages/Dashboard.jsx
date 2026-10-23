@@ -1657,6 +1657,10 @@ export default function Dashboard() {
                 isSaving={isSaving}
                 currentWorkoutId={currentWorkoutId}
                 calculateItemCalories={calculateItemCalories}
+                restTimer={restTimer}
+                onStartRestTimer={handleStartRestTimer}
+                onAdjustRestTimer={handleAdjustRestTimer}
+                onStopRestTimer={handleStopRestTimer}
               />
             )}
           </div>

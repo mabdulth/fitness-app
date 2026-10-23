@@ -89,7 +89,11 @@ export default function DailyHeroCards({
   onSaveWorkout,
   isSaving,
   currentWorkoutId,
-  calculateItemCalories
+  calculateItemCalories,
+  restTimer,
+  onStartRestTimer,
+  onAdjustRestTimer,
+  onStopRestTimer
 }) {
   const [viewMode, setViewMode] = useState('grid')
   const [focusIndex, setFocusIndex] = useState(0)
@@ -103,6 +107,37 @@ export default function DailyHeroCards({
   const [restDayNote, setRestDayNote] = useState('พักฟื้นกล้ามเนื้อตามรอบสัปดาห์')
   const [localWarmupSetsDoneMap, setLocalWarmupSetsDoneMap] = useState({})
   const [dismissedWarmups, setDismissedWarmups] = useState({})
+
+  // ล็อกการเลื่อนหน้าจอพื้นหลังเมื่อเปิดโหมดเต็มจอ
+  useEffect(() => {
+    if (viewMode === 'focus') {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prevOverflow;
+      };
+    }
+  }, [viewMode]);
+
+  // ป้องกันหน้าจอดับ (Screen Wake Lock) ในขณะซ้อมโหมดเต็มจอ
+  useEffect(() => {
+    let wakeLockSentinel = null
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator && viewMode === 'focus') {
+          wakeLockSentinel = await navigator.wakeLock.request('screen')
+        }
+      } catch (err) {
+        // ignore wakeLock error
+      }
+    }
+    requestWakeLock()
+    return () => {
+      if (wakeLockSentinel) {
+        wakeLockSentinel.release().catch(() => {})
+      }
+    }
+  }, [viewMode])
   const [activePlankTimer, setActivePlankTimer] = useState(null)
 
   useEffect(() => {
@@ -199,9 +234,14 @@ export default function DailyHeroCards({
     }
     setLocalWarmupSetsDoneMap(prev => {
       const currentArr = Array.isArray(prev[item.uuid]) ? prev[item.uuid] : []
-      const nextArr = currentArr.includes(setNumber)
+      const isAlreadyDone = currentArr.includes(setNumber)
+      const nextArr = isAlreadyDone
         ? currentArr.filter(s => s !== setNumber)
         : [...currentArr, setNumber]
+      if (!isAlreadyDone && typeof onStartRestTimer === 'function') {
+        const restSec = parseInt(item?.rest_sec) || 60
+        onStartRestTimer(restSec, `${(item?.name || 'ท่าวอร์ม').split('(')[0].trim()} (เซ็ต ${setNumber})`)
+      }
       return { ...prev, [item.uuid]: nextArr }
     })
   }
@@ -824,13 +864,483 @@ export default function DailyHeroCards({
   // =========================================================================
   // โหมดที่ 3: การ์ดท่าฝึกประจำวัน (ตัวหนังสือใหญ่ ไม่รก กดง่ายบนมือถือ)
   // =========================================================================
-  const cardsToRender =
-    viewMode === 'focus'
-      ? [effectiveWorkouts[safeFocusIndex]].filter(Boolean)
-      : effectiveWorkouts
+  // =========================================================================
+  // โหมดซ้อมเต็มจอแบบยิม โฟกัสทีละท่า (True Fullscreen Gym Focus Mode)
+  // ไร้การเลื่อนหน้าจอ (Zero Scroll), ตัวหนังสือใหญ่, มีตัวจับเวลาพักในตัว, ภาพเคลื่อนไหวเล่นตลอด
+  // =========================================================================
+  const renderFullscreenFocusModal = () => {
+    if (effectiveWorkouts.length === 0) {
+      return (
+        <div className="fixed inset-0 z-50 bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center select-none">
+          <p className="text-lg text-slate-300 font-bold mb-4">ยังไม่มีท่าฝึกในตารางของวันนี้</p>
+          <button
+            type="button"
+            onClick={() => setViewMode('grid')}
+            className="px-6 py-2.5 bg-emerald-500 text-slate-950 font-black rounded-xl cursor-pointer"
+          >
+            กลับสู่หน้ารวม
+          </button>
+        </div>
+      )
+    }
+
+    const currentItem = effectiveWorkouts[safeFocusIndex] || effectiveWorkouts[0]
+    const isWarmupEx =
+      currentItem?.is_warmup === true ||
+      currentItem?.muscle === 'Warmup' ||
+      String(currentItem?.name || '').includes('[วอร์ม')
+    const existsInParent = todayWorkouts.some(w => w.uuid === currentItem?.uuid)
+
+    const setsNum = Math.max(1, parseInt(currentItem?.sets) || (isWarmupEx ? 2 : 3))
+    const repsNum = Math.max(1, parseInt(currentItem?.reps) || (isWarmupEx ? 15 : 12))
+    const weightNum = parseFloat(currentItem?.weight) || 0
+    const weightUnit = currentItem?.weight_unit || (currentItem?.type === 'Machine' || currentItem?.type === 'Cable' ? 'pin' : 'kg')
+    const restSec = parseInt(currentItem?.rest_sec) || 90
+
+    const completedSetsArr = existsInParent
+      ? (Array.isArray(currentItem?.completed_sets) ? currentItem.completed_sets : [])
+      : (Array.isArray(localWarmupSetsDoneMap[currentItem?.uuid]) ? localWarmupSetsDoneMap[currentItem?.uuid] : [])
+
+    let nextSetToPerform = null
+    for (let s = 1; s <= setsNum; s++) {
+      if (!completedSetsArr.includes(s)) {
+        nextSetToPerform = s
+        break
+      }
+    }
+
+    const isPlankHold =
+      currentItem?.is_timed === true ||
+      String(currentItem?.name || '').toLowerCase().includes('plank') ||
+      String(currentItem?.name || '').includes('แพลงก์')
+
+    const isCardio = currentItem?.muscle === 'Cardio'
+    const videoLink = getExerciseYouTubeUrl(currentItem?.name)
+    const shortWarmupTip = getShortWarmupTip(currentItem)
+
+    const cleanRawName = String(currentItem?.name || '').replace(/🔥\s*\[[^\]]+\]\s*/g, '')
+    const titleParts = cleanRawName.split('(')
+    const englishTitle = titleParts[0].trim()
+    const thaiSubtitle = titleParts[1]
+      ? titleParts[1].replace(')', '').trim()
+      : currentItem?.sub_muscle
+
+    const isResting = Boolean(restTimer?.active && (restTimer?.remainingSec || 0) > 0)
+    const isRestJustFinished = Boolean(restTimer?.justFinished)
+
+    const formatMmSs = (sec) => {
+      const s = Math.max(0, sec || 0)
+      const m = Math.floor(s / 60)
+      const rem = s % 60
+      return `${String(m).padStart(2, '0')}:${String(rem).padStart(2, '0')}`
+    }
+
+    const weightStep = weightUnit === 'pin' ? 1 : 2.5
+
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-950 text-white flex flex-col justify-between overflow-hidden select-none p-3 sm:p-5">
+        {/* ================= HEADER (Zero scroll, compact) ================= */}
+        <div className="flex items-center justify-between gap-2 shrink-0 pb-2 border-b border-slate-800">
+          {/* ซ้าย: ออกจากโหมดเต็มจอ */}
+          <button
+            type="button"
+            onClick={() => setViewMode('grid')}
+            className="px-3 py-1.5 text-xs sm:text-sm font-black text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
+          >
+            ✕ ออก
+          </button>
+
+          {/* กลาง: ลำดับท่า + ปุ่มเลื่อนท่าก่อนหน้า/ถัดไป */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={safeFocusIndex === 0}
+              onClick={() => setFocusIndex(prev => Math.max(0, prev - 1))}
+              className="w-8 h-8 flex items-center justify-center text-xs font-black bg-slate-900 border border-slate-700 hover:bg-slate-800 rounded-lg text-slate-300 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+              title="ท่าก่อนหน้า"
+            >
+              ←
+            </button>
+            <span className="text-xs sm:text-sm font-black text-emerald-400 whitespace-nowrap">
+              ท่าที่ {safeFocusIndex + 1} / {effectiveWorkouts.length}
+            </span>
+            <button
+              type="button"
+              disabled={safeFocusIndex === effectiveWorkouts.length - 1}
+              onClick={() => setFocusIndex(prev => Math.min(effectiveWorkouts.length - 1, prev + 1))}
+              className="w-8 h-8 flex items-center justify-center text-xs font-black bg-slate-900 border border-slate-700 hover:bg-slate-800 rounded-lg text-slate-300 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+              title="ท่าถัดไป"
+            >
+              →
+            </button>
+          </div>
+
+          {/* ขวา: สลับท่า + คลิปจริง */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {existsInParent && (
+              <button
+                type="button"
+                onClick={() => onQuickSwap(currentItem.uuid)}
+                className="px-2.5 py-1.5 text-xs font-black text-indigo-300 bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700 rounded-xl transition cursor-pointer"
+              >
+                🔄 สลับ
+              </button>
+            )}
+            <a
+              href={videoLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1.5 text-xs font-black text-rose-300 bg-rose-950/80 hover:bg-rose-900 border border-rose-700 rounded-xl transition flex items-center gap-1"
+            >
+              ▶ คลิป
+            </a>
+          </div>
+        </div>
+
+        {/* ================= CENTRAL STAGE (Hero visual + Title + Integrated Rest Timer) ================= */}
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2 py-1 overflow-hidden w-full max-w-lg mx-auto">
+          {/* ชื่อท่าและกลุ่มกล้ามเนื้อ */}
+          <div className="text-center w-full px-2 shrink-0">
+            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+              <span className="px-2 py-0.5 text-[11px] font-black rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                {isWarmupEx ? '🔥 ท่าวอร์ม' : currentItem.muscle}
+              </span>
+              <h2 className="text-base sm:text-xl font-black text-white truncate max-w-[280px] sm:max-w-md">
+                {thaiSubtitle || englishTitle}
+              </h2>
+            </div>
+            {thaiSubtitle && (
+              <p className="text-xs text-slate-400 font-semibold truncate mt-0.5">
+                {englishTitle}
+              </p>
+            )}
+          </div>
+
+          {/* กล่องแสดงภาพเคลื่อนไหว (ความสูงจำกัดไม่ให้ล้นหน้าจอ) */}
+          <div className="w-full h-40 sm:h-52 max-h-[28vh] flex items-center justify-center rounded-2xl overflow-hidden bg-slate-900/90 border border-slate-800 shadow-2xl relative shrink-0 [&>div]:!h-full [&>div]:!max-h-full [&>div]:!w-full">
+            <ExerciseIllustration
+              name={currentItem.name}
+              muscle={isWarmupEx ? 'Warmup' : currentItem.muscle}
+              type={currentItem.type}
+              size="xl"
+            />
+          </div>
+
+          {/* ส่วนแสดงตัวจับเวลาพักแบบฝังแน่น (ภาพท่าทางยังคงเล่นอยู่ด้านบนตลอดเวลา!) */}
+          {isResting ? (
+            <div className="w-full bg-gradient-to-r from-emerald-950/95 via-slate-900/95 to-teal-950/95 border-2 border-emerald-400 rounded-2xl p-2.5 sm:p-3 shadow-[0_0_25px_rgba(52,211,153,0.35)] flex items-center justify-between gap-3 animate-in fade-in zoom-in-95 duration-200 shrink-0">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-lg animate-pulse shrink-0">
+                  ⏱️
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[10px] sm:text-xs font-black text-emerald-300 tracking-wider uppercase truncate">
+                    {restTimer.label || 'พักฟื้นระหว่างเซ็ต'}
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black text-white tabular-nums tracking-wider leading-none">
+                    {formatMmSs(restTimer.remainingSec)}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => onAdjustRestTimer?.(-15)}
+                  className="px-2 py-1 text-xs font-black bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition cursor-pointer"
+                  title="ลดเวลาพัก 15 วินาที"
+                >
+                  -15s
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onAdjustRestTimer?.(30)}
+                  className="px-2 py-1 text-xs font-black bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition cursor-pointer"
+                  title="เพิ่มเวลาพัก 30 วินาที"
+                >
+                  +30s
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onStopRestTimer?.()}
+                  className="px-3 py-1 text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-lg shadow-sm transition cursor-pointer"
+                  title="ข้ามเวลาพักทันที"
+                >
+                  ข้ามพัก ⚡
+                </button>
+              </div>
+            </div>
+          ) : isRestJustFinished ? (
+            <div className="w-full bg-emerald-500 text-slate-950 border-2 border-emerald-300 rounded-2xl p-2.5 flex items-center justify-between gap-2 shadow-[0_0_25px_rgba(52,211,153,0.6)] animate-pulse shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xl animate-bounce">🔔</span>
+                <span className="text-xs sm:text-sm font-black tracking-wide">
+                  หมดเวลาพักแล้ว! ฟื้นพลังเต็มที่ ลุยเซ็ตถัดไปเลย! 🔥
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => onStopRestTimer?.()}
+                className="px-2.5 py-1 text-xs font-black bg-slate-950 text-white rounded-lg cursor-pointer"
+              >
+                รับทราบ
+              </button>
+            </div>
+          ) : (
+            <div className="w-full px-3 py-1.5 text-xs font-bold text-amber-200 bg-amber-950/40 border border-amber-500/30 rounded-xl text-center truncate shrink-0">
+              {shortWarmupTip}
+            </div>
+          )}
+        </div>
+
+        {/* ================= CONTROLS DECK (Compact, no scroll) ================= */}
+        <div className="w-full max-w-lg mx-auto bg-slate-900/95 border border-slate-800 rounded-2xl p-2.5 sm:p-3 shrink-0 space-y-2">
+          {/* แถบเซ็ต: แสดงวงกลม/ปุ่มเซ็ต 1, 2, 3... และการตั้งเวลาพัก */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-black text-slate-400">
+                เซ็ต ({completedSetsArr.length}/{setsNum}):
+              </span>
+              {Array.from({ length: setsNum }, (_, sIdx) => {
+                const sNum = sIdx + 1
+                const isDone = completedSetsArr.includes(sNum)
+                return (
+                  <button
+                    key={sNum}
+                    type="button"
+                    onClick={() => handleToggleCardSet(currentItem, sNum)}
+                    className={`w-7 h-7 sm:w-8 sm:h-8 text-xs font-black rounded-lg border transition cursor-pointer ${
+                      isDone
+                        ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-xs'
+                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-500'
+                    }`}
+                  >
+                    {isDone ? '✓' : sNum}
+                  </button>
+                )
+              })}
+              <button
+                type="button"
+                onClick={() => onUpdateStats(currentItem.uuid, 'sets', Math.min(10, setsNum + 1))}
+                className="w-7 h-7 sm:w-8 sm:h-8 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg border border-slate-700 transition cursor-pointer"
+                title="เพิ่มเซ็ต"
+              >
+                +
+              </button>
+            </div>
+
+            {/* พักเซ็ต 60 วิ / 90 วิ */}
+            {!isCardio && (
+              <div className="flex items-center gap-1 shrink-0 bg-slate-950 px-2 py-0.5 rounded-lg border border-slate-800">
+                <span className="text-[10px] text-slate-400">พัก:</span>
+                <button
+                  type="button"
+                  onClick={() => onUpdateStats(currentItem.uuid, 'rest_sec', 60)}
+                  className={`px-1.5 py-0.5 text-[10px] font-black rounded ${
+                    restSec === 60 ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  60s
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onUpdateStats(currentItem.uuid, 'rest_sec', 90)}
+                  className={`px-1.5 py-0.5 text-[10px] font-black rounded ${
+                    restSec === 90 ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  90s
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ปรับน้ำหนัก และ จำนวนครั้ง / เวลาค้าง */}
+          {!isCardio ? (
+            <div className="grid grid-cols-2 gap-2">
+              {/* ปรับน้ำหนัก */}
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span className="font-bold">น้ำหนัก</span>
+                  <div className="flex items-center gap-0.5 bg-slate-900 rounded p-0.5 border border-slate-800">
+                    {['kg', 'lbs', 'pin'].map(u => (
+                      <button
+                        key={u}
+                        type="button"
+                        onClick={() => onUpdateStats(currentItem.uuid, 'weight_unit', u)}
+                        className={`px-1 text-[9px] font-black rounded transition ${
+                          weightUnit === u ? 'bg-emerald-500 text-slate-950' : 'text-slate-400'
+                        }`}
+                      >
+                        {u}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between mt-1">
+                  <button
+                    type="button"
+                    onClick={() => onUpdateStats(currentItem.uuid, 'weight', Math.max(0, weightNum - weightStep))}
+                    className="w-7 h-7 flex items-center justify-center text-xs font-black bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <span
+                    onClick={() => {
+                      const val = prompt('กรอกน้ำหนักที่ต้องการ:', weightNum)
+                      if (val !== null && !isNaN(val)) onUpdateStats(currentItem.uuid, 'weight', parseFloat(val) || 0)
+                    }}
+                    className="text-base sm:text-lg font-black text-white cursor-pointer px-1 tabular-nums hover:text-emerald-400 transition"
+                    title="แตะเพื่อพิมพ์น้ำหนัก"
+                  >
+                    {weightNum} <span className="text-xs font-normal text-slate-400">{weightUnit}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateStats(currentItem.uuid, 'weight', weightNum + weightStep)}
+                    className="w-7 h-7 flex items-center justify-center text-xs font-black bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* ปรับจำนวนครั้ง หรือ วินาที */}
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span className="font-bold">{isPlankHold ? 'เวลาค้าง' : 'จำนวนครั้ง'}</span>
+                  <span className="text-[10px] text-emerald-400">
+                    {isPlankHold ? 'วินาที/เซ็ต' : 'ครั้ง/เซ็ต'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between mt-1">
+                  <button
+                    type="button"
+                    onClick={() => onUpdateStats(currentItem.uuid, 'reps', Math.max(1, repsNum - (isPlankHold ? 5 : 1)))}
+                    className="w-7 h-7 flex items-center justify-center text-xs font-black bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <span
+                    onClick={() => {
+                      const val = prompt(isPlankHold ? 'กรอกเวลาค้าง (วินาที):' : 'กรอกจำนวนครั้ง:', repsNum)
+                      if (val !== null && !isNaN(val)) onUpdateStats(currentItem.uuid, 'reps', parseInt(val) || 1)
+                    }}
+                    className="text-base sm:text-lg font-black text-white cursor-pointer px-1 tabular-nums hover:text-emerald-400 transition"
+                    title="แตะเพื่อพิมพ์ตัวเลข"
+                  >
+                    {repsNum} <span className="text-xs font-normal text-slate-400">{isPlankHold ? 'วิ' : 'ครั้ง'}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateStats(currentItem.uuid, 'reps', Math.min(180, repsNum + (isPlankHold ? 5 : 1)))}
+                    className="w-7 h-7 flex items-center justify-center text-xs font-black bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-4 gap-1.5 text-center text-xs">
+              <div className="bg-slate-950/80 p-1.5 rounded-xl border border-slate-800">
+                <div className="text-[10px] text-slate-400">เวลา (นาที)</div>
+                <div className="text-sm font-black text-white">{currentItem.duration || 20}</div>
+              </div>
+              <div className="bg-slate-950/80 p-1.5 rounded-xl border border-slate-800">
+                <div className="text-[10px] text-slate-400">ระยะทาง (km)</div>
+                <div className="text-sm font-black text-white">{currentItem.distance_km || 0}</div>
+              </div>
+              <div className="bg-slate-950/80 p-1.5 rounded-xl border border-slate-800">
+                <div className="text-[10px] text-slate-400">ชัน (%)</div>
+                <div className="text-sm font-black text-white">{currentItem.incline || 0}%</div>
+              </div>
+              <div className="bg-slate-950/80 p-1.5 rounded-xl border border-slate-800">
+                <div className="text-[10px] text-slate-400">ความเร็ว</div>
+                <div className="text-sm font-black text-white">{currentItem.speed_kmh || 3.5}</div>
+              </div>
+            </div>
+          )}
+
+          {/* ปลั๊กอินจับเวลาแพลงก์ (ถ้าเป็นท่าแพลงก์) */}
+          {isPlankHold && (
+            <div className="pt-1">
+              {activePlankTimer && activePlankTimer.uuid === currentItem.uuid ? (
+                <div className="flex items-center justify-between w-full bg-teal-950/90 border border-teal-500/60 rounded-xl px-3 py-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base animate-spin">⏱️</span>
+                    <span className="text-xs font-black text-teal-300">
+                      กำลังแพลงก์: {activePlankTimer.elapsedSec} / {activePlankTimer.targetSec} วิ
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleStopPlankTimer(currentItem, true)}
+                    className="px-2.5 py-1 text-xs font-black bg-rose-600 hover:bg-rose-500 text-white rounded-lg cursor-pointer"
+                  >
+                    ⏹️ บันทึก {activePlankTimer.elapsedSec} วิ
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleStartPlankTimer(currentItem, repsNum)}
+                  className="w-full py-1.5 text-xs font-black bg-teal-600 hover:bg-teal-500 text-white rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  ▶ กดเริ่มจับเวลาแพลงก์ ({repsNum} วิ)
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ================= BIG 1-TAP HERO ACTION BUTTON (Thumb Zone) ================= */}
+        <div className="w-full max-w-lg mx-auto pt-2 shrink-0">
+          {isResting ? (
+            <button
+              type="button"
+              onClick={() => onStopRestTimer?.()}
+              className="w-full py-3.5 sm:py-4 text-sm sm:text-base font-black bg-gradient-to-r from-amber-400 via-amber-500 to-emerald-400 hover:from-amber-300 hover:to-emerald-300 text-slate-950 rounded-2xl shadow-[0_0_25px_rgba(251,191,36,0.4)] active:scale-[0.98] transition flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>⚡ กำลังพักฟื้น ({formatMmSs(restTimer.remainingSec)})</span>
+              <span className="text-xs font-extrabold opacity-90">• แตะเพื่อข้ามพัก & ลุยต่อ</span>
+            </button>
+          ) : nextSetToPerform ? (
+            <button
+              type="button"
+              onClick={() => handleToggleCardSet(currentItem, nextSetToPerform)}
+              className="w-full py-3.5 sm:py-4 text-sm sm:text-base font-black bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 rounded-2xl shadow-[0_0_25px_rgba(16,185,129,0.5)] active:scale-[0.98] transition flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>✓ บันทึกเซ็ตที่ {nextSetToPerform} & เริ่มพัก ({restSec}s)</span>
+            </button>
+          ) : safeFocusIndex < effectiveWorkouts.length - 1 ? (
+            <button
+              type="button"
+              onClick={() => setFocusIndex(prev => prev + 1)}
+              className="w-full py-3.5 sm:py-4 text-sm sm:text-base font-black bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-600 hover:from-indigo-400 hover:to-purple-400 text-white rounded-2xl shadow-[0_0_25px_rgba(99,102,241,0.5)] active:scale-[0.98] transition flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>🎉 ท่านี้ครบแล้ว! ไปท่าถัดไป ({safeFocusIndex + 2}/{effectiveWorkouts.length}) →</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className="w-full py-3.5 sm:py-4 text-sm sm:text-base font-black bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 rounded-2xl shadow-[0_0_25px_rgba(16,185,129,0.5)] active:scale-[0.98] transition flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>🏆 ยอดเยี่ยม! ซ้อมครบทุกท่าของวันนี้แล้ว (กลับหน้ารวม)</span>
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  const cardsToRender = effectiveWorkouts
 
   return (
     <div className="space-y-4">
+      {viewMode === 'focus' && renderFullscreenFocusModal()}
       {renderDateNavigator()}
       {/* แถบบนสุด: ชื่อโปรแกรมวันนี้ + ปุ่มควบคุมหลัก (ตัวใหญ่ กระชับในกล่องเดียว) */}
       <div className="p-4 sm:p-5 bg-slate-900 text-white rounded-3xl border border-slate-800 shadow-md space-y-3">
@@ -911,11 +1421,9 @@ export default function DailyHeroCards({
                 setViewMode('focus')
                 setFocusIndex(0)
               }}
-              className={`px-3.5 py-1.5 text-xs sm:text-sm font-extrabold rounded-lg transition ${
-                viewMode === 'focus' ? 'bg-emerald-500 text-slate-950' : 'text-slate-300'
-              }`}
+              className="px-3.5 py-1.5 text-xs sm:text-sm font-extrabold rounded-lg transition bg-slate-800 hover:bg-emerald-500 hover:text-slate-950 text-slate-200 cursor-pointer shadow-xs"
             >
-              🎯 ดูทีละท่า (เต็มจอ)
+              🎯 เปิดโหมดซ้อมเต็มจอ (ทีละท่า)
             </button>
           </div>
 
@@ -1062,7 +1570,18 @@ export default function DailyHeroCards({
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFocusIndex(idx)
+                          setViewMode('focus')
+                        }}
+                        className="px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-black text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-400 rounded-xl transition flex items-center gap-1 cursor-pointer shadow-xs"
+                        title="เปิดโหมดซ้อมเต็มจอดูทีละท่า"
+                      >
+                        🎯 เต็มจอ
+                      </button>
                       {existsInParent && (
                         <button
                           type="button"

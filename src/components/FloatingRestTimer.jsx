@@ -22,7 +22,7 @@ export default function FloatingRestTimer({
     totalSec > 0 ? Math.max(0, Math.min(100, (remainingSec / totalSec) * 100)) : 0
 
   return (
-    <div className="fixed right-3 sm:right-6 bottom-20 sm:bottom-24 z-50 max-w-[calc(100vw-1.5rem)] animate-in fade-in slide-in-from-bottom-4 duration-300">
+    <div className="fixed right-3 sm:right-6 bottom-20 sm:bottom-24 z-40 max-w-[calc(100vw-1.5rem)] animate-in fade-in slide-in-from-bottom-4 duration-300">
       <div
         className={`p-3 sm:p-3.5 rounded-2xl shadow-2xl backdrop-blur-md border-2 transition-all flex flex-col gap-2 ${
           justFinished
